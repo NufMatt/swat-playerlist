@@ -250,7 +250,7 @@ async def update_game_status():
                     await message.edit(embed=embed_pre)
         else:
             embed_file = ""
-            print(f"Gefundene Übereinstimmungen für Region {region}:" + len(matching_players))
+            print(f"Gefundene Übereinstimmungen für Region {region}:" + str(len(matching_players)))
             embed_pre = await create_embed(region, matching_players)
             embed_send = await channel.send(embed=embed_pre)
             embeds.append({
