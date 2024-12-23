@@ -32,18 +32,17 @@ API_URLS = {
     "NA1": "https://api.gtacnr.net/cnr/players?serverId=US1",
     "NA2": "https://api.gtacnr.net/cnr/players?serverId=US2",
     "SEA": "https://api.gtacnr.net/cnr/players?serverId=SEA",
-}  # Ersetze durch die tatsächlichen API-URLs
-CHECK_INTERVAL = 60  # Intervall für API-Überprüfung in Sekunden
-CACHE_UPDATE_INTERVAL = 300  # Intervall für Discord-Caching in Sekunden
-MENTOR_ROLE_ID = 1320457877508460565  # Ersetze mit der tatsächlichen ID der "SWAT Mentor"-Rolle
+}
+CHECK_INTERVAL = 60
+CACHE_UPDATE_INTERVAL = 300
 STATUS_CHANNEL_ID = 1320463232128913551  # Ersetze mit der ID des Status-Kanals
 GUILD_ID = 1300519755622383689  # Ersetze mit der ID des Ziel-Servers
+
+MENTOR_ROLE_ID = 1320457877508460565
 CADET_ROLE_ID = 1320735081379139707
 TRAINEE_ROLE_ID = 1320735125809664112
 embeds = []
 
-# Globale Variablen
-# Globale Variablen
 discord_cache = {
     "timestamp": None,
     "members": {},
