@@ -138,25 +138,25 @@ async def create_embed(region, matching_players):
     if mentor_count > 0:
         for i in matching_players:
             if i["type"] == "mentor" and i["discord_id"] != None:
-                mentor_embed = mentor_embed + f"\n - {i["username"]}" + f" (<@{i['discord_id']}>)"
+                mentor_embed = mentor_embed + "\n - " + i["username"] + " <@" + i['discord_id'] + ">"
             elif i["type"] == "mentor":
-                mentor_embed = mentor_embed + f"\n - {i["username"]}" + " (?)"
+                mentor_embed = mentor_embed + "\n - " + i["username"] + " (?)"
         embed.add_field(name="Mentors Online:", value=mentor_embed, inline=False)
 
     if swat_count > 0:
         for i in matching_players:
             if i["type"] == "SWAT" and i["discord_id"] != None:
-                swat_embed = swat_embed + f"\n - {i["username"]}" + f" (<@{i['discord_id']}>)"
+                swat_embed = swat_embed + "\n - " + i["username"] + " <@" + i['discord_id'] + ">"
             elif i["type"] == "SWAT" or i["type"] == "unknown":
-                swat_embed = swat_embed + f"\n - {i["username"]}" + " (?)"
+                swat_embed = swat_embed + "\n - " + i["username"] + " (?)"
         embed.add_field(name="SWAT Online:", value=swat_embed, inline=False)
 
     if trainee_count > 0:
         for i in matching_players:
             if i["type"] == "trainee" and i["discord_id"] != None:
-                trainee_embed = trainee_embed + f"\n - T {i["username"]}" + f" (<@{i['discord_id']}>)"
+                trainee_embed = trainee_embed + "\n - T " + i["username"] + " <@" + i['discord_id'] + ">"
             elif i["type"] == "cadet" and i["discord_id"] != None:
-                trainee_embed = trainee_embed + f"\n - C {i["username"]}" + f" (<@{i['discord_id']}>)"
+                trainee_embed = trainee_embed + "\n - C " + i["username"] + " <@" + i['discord_id'] + ">"
         embed.add_field(name="Cadets / Trainees Online:", value=trainee_embed, inline=False)
     embed.set_footer(text="Refreshes every 60 seconds")
     
