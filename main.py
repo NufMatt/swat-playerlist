@@ -84,6 +84,22 @@ async def fetch_players(region):
 def clean_discord_name(name):
     return name.split(" [SWAT]")[0]
 
+async def getqueuedata():
+    queueerror = False
+    try:
+        response = requests.get("https://api.gtacnr.net/cnr/servers")
+        response.raise_for_status()
+        data = json.loads(response.text)
+
+        queue_info = {entry["Id"]: entry for entry in data}
+        queue_info["NA1"] = queue_info.pop("US1")
+        queue_info["NA2"] = queue_info.pop("US2")
+        queueerror = False
+        return queue_info
+    except requests.RequestException as e:
+        print(f"Fehler beim Abrufen der Queue-Daten: {e}")
+        queueerror = True
+        return []
 
 ##
 ## Discord Cache
@@ -118,7 +134,7 @@ async def update_discord_cache():
 ## EMBED ERSTELLEN
 ##
 
-async def create_embed(region, matching_players):
+async def create_embed(region, matching_players, queue_data):
     swat_count = sum(1 for entry in matching_players if entry['type'] == 'unknown' or entry['type'] == 'SWAT' or entry['type'] == 'mentor')
     mentor_count = sum(1 for entry in matching_players if entry['type'] == 'mentor')
     trainee_count = sum(1 for entry in matching_players if entry['type'] == 'trainee' or entry['type'] == 'cadet')
@@ -133,7 +149,7 @@ async def create_embed(region, matching_players):
         title="\U0001F1F8\U0001F1EC " + str(region)
     else:
         title = ""
-    embed = discord.Embed(title=title, description="``SWAT Online:  " + str(swat_count) + "``", colour=0x28ef05)
+    embed = discord.Embed(title=title, description="``SWAT Online:" + str(swat_count) + "``" + "  ``Players: " + str(queue_data[region]["Players"]) + "/" + str(queue_data[region]["MaxPlayers"]) + "``" + " ``Queue: " + str(queue_data[region]["QueuedPlayers"]) + "``", colour=0x28ef05)
     
 
     if mentor_count > 0:
@@ -174,6 +190,9 @@ async def create_embed(region, matching_players):
 @tasks.loop(seconds=CHECK_INTERVAL)
 async def update_game_status():
     await update_discord_cache()
+    
+    queue_data = await getqueuedata()
+    
     channel = client.get_channel(STATUS_CHANNEL_ID)
     if not channel:
         print(f"Status-Kanal mit ID {STATUS_CHANNEL_ID} nicht gefunden.")
@@ -237,7 +256,7 @@ async def update_game_status():
             embed_file = json.loads(file_xxxx.read())
             
             print(f"Gefundene Übereinstimmungen für Region {region}: " + str(len(matching_players)))
-            embed_pre = await create_embed(region, matching_players)
+            embed_pre = await create_embed(region, matching_players, queue_data)
             for i in embed_file:
                 if i["region"] == region:
                     channel = client.get_channel(i["channel_id"])
@@ -254,7 +273,7 @@ async def update_game_status():
         else:
             embed_file = ""
             print(f"Gefundene Übereinstimmungen für Region {region}:" + str(len(matching_players)))
-            embed_pre = await create_embed(region, matching_players)
+            embed_pre = await create_embed(region, matching_players, queue_data)
             embed_send = await channel.send(embed=embed_pre)
             embeds.append({
                 "region": region,
