@@ -15,6 +15,7 @@ from discord.ext import tasks, commands
 import requests
 import asyncio
 import json
+import datetime
 from datetime import datetime, timedelta
 import time
 
@@ -90,7 +91,7 @@ def clean_discord_name(name):
 
 async def update_discord_cache():
     global discord_cache
-    now = datetime.utcnow()
+    now = datetime.now()
     if discord_cache["timestamp"] and now - discord_cache["timestamp"] < timedelta(seconds=CACHE_UPDATE_INTERVAL):
         print("Discord-Cache ist aktuell. Kein Update erforderlich.")
         return
@@ -158,7 +159,7 @@ async def create_embed(region, matching_players):
             elif i["type"] == "cadet" and i["discord_id"] != None:
                 trainee_embed = trainee_embed + "\n - C " + i["username"] + " <@" + i['discord_id'] + ">"
         embed.add_field(name="Cadets / Trainees Online:", value=trainee_embed, inline=False)
-    current_time = datetime.datetime.now()
+    current_time = datetime.now()
     embed.set_footer(text="Refreshes every 60 seconds - LU: " + str(current_time.strftime("%X") + " " + str(current_time.strftime("%x"))))
     
     if trainee_count == 0 and mentor_count == 0 and swat_count == 0:
