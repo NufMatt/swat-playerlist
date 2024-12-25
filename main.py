@@ -160,7 +160,7 @@ async def create_embed(region, matching_players):
                 trainee_embed = trainee_embed + "\n - C " + i["username"] + " <@" + i['discord_id'] + ">"
         embed.add_field(name="Cadets / Trainees Online:", value=trainee_embed, inline=False)
     current_time = datetime.now()
-    embed.set_footer(text="Refreshes every 60 seconds - LU: " + str(current_time.strftime("%X") + " " + str(current_time.strftime("%x"))))
+    embed.set_footer(text="Refreshes every 60 seconds - LU: " + str(current_time.hour) + ":" + str(current_time.minute) + " " + str(current_time.day) + "." + str(current_time.month) + "." + str(current_time.year))
     
     if trainee_count == 0 and mentor_count == 0 and swat_count == 0:
         embed.add_field(name="Nobody is online",value="", inline=False)
