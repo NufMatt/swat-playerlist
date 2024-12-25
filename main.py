@@ -249,6 +249,7 @@ async def update_game_status():
                     if message is None:
                         print("nachricht nicht gefunden")
                         return
+                    asyncio.sleep(1)
                     await message.edit(embed=embed_pre)
         else:
             embed_file = ""
