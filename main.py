@@ -40,8 +40,8 @@ STATUS_CHANNEL_ID = 1320463232128913551  # Ersetze mit der ID des Status-Kanals
 GUILD_ID = 1300519755622383689  # Ersetze mit der ID des Ziel-Servers
 
 MENTOR_ROLE_ID = 1320457877508460565
-CADET_ROLE_ID = 1320735081379139707
-TRAINEE_ROLE_ID = 1320735125809664112
+CADET_ROLE_ID = 1321853586384093235
+TRAINEE_ROLE_ID = 1321853549273157642
 embeds = []
 
 discord_cache = {
@@ -155,28 +155,29 @@ async def create_embed(region, matching_players, queue_data):
     if mentor_count > 0:
         for i in matching_players:
             if i["type"] == "mentor" and i["discord_id"] != None:
-                mentor_embed = mentor_embed + "\n - " + i["username"] + " <@" + i['discord_id'] + ">"
+                mentor_embed = mentor_embed + "\n - " + i["username"] + "   (<@" + str(i['discord_id']) + ">)"
             elif i["type"] == "mentor":
-                mentor_embed = mentor_embed + "\n - " + i["username"] + " (?)"
+                mentor_embed = mentor_embed + "\n - " + i["username"] + " (❔)"
         embed.add_field(name="Mentors Online:", value=mentor_embed, inline=False)
 
     if swat_count > 0:
         for i in matching_players:
             if i["type"] == "SWAT" and i["discord_id"] != None:
-                swat_embed = swat_embed + "\n - " + i["username"] + " <@" + i['discord_id'] + ">"
+                swat_embed = swat_embed + "\n - " + i["username"] + "   (<@" + str(i['discord_id']) + ">)"
             elif i["type"] == "SWAT" or i["type"] == "unknown":
-                swat_embed = swat_embed + "\n - " + i["username"] + " (?)"
+                swat_embed = swat_embed + "\n - " + i["username"] + " (❔)"
         embed.add_field(name="SWAT Online:", value=swat_embed, inline=False)
 
     if trainee_count > 0:
         for i in matching_players:
             if i["type"] == "trainee" and i["discord_id"] != None:
-                trainee_embed = trainee_embed + "\n - T " + i["username"] + " <@" + i['discord_id'] + ">"
+                trainee_embed = trainee_embed + "\n - T " + i["username"] + "   (<@" + str(i['discord_id']) + ">)"
             elif i["type"] == "cadet" and i["discord_id"] != None:
-                trainee_embed = trainee_embed + "\n - C " + i["username"] + " <@" + i['discord_id'] + ">"
+                trainee_embed = trainee_embed + "\n - C " + i["username"] + "   (<@" + str(i['discord_id']) + ">)"
         embed.add_field(name="Cadets / Trainees Online:", value=trainee_embed, inline=False)
     current_time = datetime.now()
-    embed.set_footer(text="Refreshes every 60 seconds - LU: " + str(current_time.hour) + ":" + str(current_time.minute) + " " + str(current_time.day) + "." + str(current_time.month) + "." + str(current_time.year))
+
+    embed.set_footer(text="Refreshes every 60 seconds - LU: " + str(current_time.strftime("%H:%M %d.%m.%Y")))
     
     if trainee_count == 0 and mentor_count == 0 and swat_count == 0:
         embed.add_field(name="Nobody is online",value="", inline=False)
@@ -199,55 +200,67 @@ async def update_game_status():
         print("\n - \n")
         return
 
-    for region in API_URLS.keys():
+    for region in API_URLS.keys():  # für jeden Server
         print(f"Verarbeite Region: {region}")
         players = await fetch_players(region)
         matching_players = []
 
-        for i in players:
+        for i in players:  # für jeden Spieler auf dem Server
             username = i["Username"]["Username"]
-            if username.startswith("[SWAT] "):
+            if any(playercheck["username"] == username for playercheck in matching_players):
+                continue  # Überspringe, wenn der Nutzername bereits in matching_players ist
+
+            if username.startswith("[SWAT] "):  # Spieler hat SWAT im Namen
+                cleaned_username = username.replace("[SWAT] ", "")
+                discord_found = False
+
                 for discord_name, details in discord_cache["members"].items():
-                    cleaned_username = username.replace("[SWAT] ","")
-                    discord_name = discord_name.replace (" [SWAT]", "")
-                    if cleaned_username == discord_name:
-                        if MENTOR_ROLE_ID in details["roles"]:
-                            matching_players.append({
-                                "username": username, 
-                                "type": "mentor",
-                                "discord_id": details["id"]
-                            })
-                            break
-                        else:
-                            matching_players.append({
-                                "username": username, 
-                                "type": "SWAT",
-                                "discord_id": details["id"]
-                            })
-                            break
-                    else:
+                    discord_name = discord_name.replace(" [SWAT]", "")
+                    if str(cleaned_username) == str(discord_name):  # Nutzername auf Discord gefunden
+                        discord_found = True
+                        user_type = "mentor" if MENTOR_ROLE_ID in details["roles"] else "SWAT"
                         matching_players.append({
-                            "username": username, 
-                            "type": "SWAT",
-                            "discord_id": None
+                            "username": username,
+                            "type": user_type,
+                            "discord_id": details["id"]
                         })
-                        break
-            else:
+                        print(f"Spieler ist auf Discord: {username} ({user_type})")
+                        break  # Discord-Match gefunden, weitere Prüfung abbrechen
+
+                if not discord_found:  # Kein Match auf Discord gefunden
+                    matching_players.append({
+                        "username": username,
+                        "type": "SWAT",
+                        "discord_id": None
+                    })
+                    print(f"Spieler nicht auf Discord: {username}")
+
+            else:  # Spieler ohne SWAT-Tag
                 for discord_name, details in discord_cache["members"].items():
+                    if discord_name.endswith(" [CADET]"):
+                        discord_name = discord_name.replace(" [CADET]", "")
+                    elif discord_name.endswith(" [TRAINEE]"):
+                        discord_name = discord_name.replace(" [TRAINEE]", "")
+                        
                     if username == discord_name:
+                        print(username, discord_name)
                         if CADET_ROLE_ID in details["roles"]:
                             matching_players.append({
-                                "username": username, 
+                                "username": username,
                                 "type": "cadet",
                                 "discord_id": details["id"]
-                            })   
+                            })
+                            print(f"Spieler ist ein Cadet: {username}")
+                            break
                         elif TRAINEE_ROLE_ID in details["roles"]:
                             matching_players.append({
-                                "username": username, 
+                                "username": username,
                                 "type": "trainee",
                                 "discord_id": details["id"]
-                            })              
-        
+                            })
+                            print(f"Spieler ist ein Trainee: {username}")
+                            break
+
         with open("embeds.json", 'r') as file_obj:
             first_char = file_obj.read(1)
 
