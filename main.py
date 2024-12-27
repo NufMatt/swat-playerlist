@@ -43,7 +43,7 @@ API_URLS = {
     "SEA": "https://api.gtacnr.net/cnr/players?serverId=SEA",
 }
 
-CHECK_INTERVAL = 120
+CHECK_INTERVAL = 60
 CACHE_UPDATE_INTERVAL = 300
 STATUS_CHANNEL_ID = 1322097975324971068  # Ersetze mit der ID des Status-Kanals
 GUILD_ID = 958271853158350850  # Ersetze mit der ID des Ziel-Servers
