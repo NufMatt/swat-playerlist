@@ -306,7 +306,6 @@ async def update_game_status():
                             discord_name = discord_name.replace(" [TRAINEE]", "")
                             
                         if username == discord_name:
-                            print(username, discord_name)
                             if CADET_ROLE_ID in details["roles"]:
                                 matching_players.append({
                                     "username": username,
