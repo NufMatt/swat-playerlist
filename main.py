@@ -137,7 +137,7 @@ async def update_discord_cache():
         }
 
     discord_cache["timestamp"] = now
-    print("Discord-Cache wurde aktualisiert:", discord_cache)
+    print("Discord-Cache wurde aktualisiert!")
     print("\n - \n")
 
 ##
