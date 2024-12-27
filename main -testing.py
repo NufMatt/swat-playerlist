@@ -34,14 +34,14 @@ API_URLS = {
     "NA2": "https://api.gtacnr.net/cnr/players?serverId=US2",
     "SEA": "https://api.gtacnr.net/cnr/players?serverId=SEA",
 }
-CHECK_INTERVAL = 60
+CHECK_INTERVAL = 120
 CACHE_UPDATE_INTERVAL = 300
-STATUS_CHANNEL_ID = 1320463232128913551  # Ersetze mit der ID des Status-Kanals
-GUILD_ID = 1300519755622383689  # Ersetze mit der ID des Ziel-Servers
+STATUS_CHANNEL_ID = 1322097975324971068  # Ersetze mit der ID des Status-Kanals
+GUILD_ID = 958271853158350850  # Ersetze mit der ID des Ziel-Servers
+MENTOR_ROLE_ID = 1303048285040410644
+CADET_ROLE_ID = 962226985222959145
+TRAINEE_ROLE_ID = 1033432392758722682
 
-MENTOR_ROLE_ID = 1320457877508460565
-CADET_ROLE_ID = 1321853586384093235
-TRAINEE_ROLE_ID = 1321853549273157642
 embeds = []
 
 discord_cache = {
@@ -79,7 +79,7 @@ async def fetch_players(region):
             return data
         except requests.RequestException as e:
             print(f"Fehler beim Abrufen der API-Daten von {api_url}: {e}")
-            return []
+            return None # return None überall da, wo fetch_players ausgelesen wird
 
 def clean_discord_name(name):
     return name.split(" [SWAT]")[0]
@@ -99,7 +99,7 @@ async def getqueuedata():
     except requests.RequestException as e:
         print(f"Fehler beim Abrufen der Queue-Daten: {e}")
         queueerror = True
-        return []
+        return None
 
 ##
 ## Discord Cache
@@ -135,12 +135,6 @@ async def update_discord_cache():
 ##
 
 async def create_embed(region, matching_players, queue_data):
-    swat_count = sum(1 for entry in matching_players if entry['type'] == 'unknown' or entry['type'] == 'SWAT' or entry['type'] == 'mentor')
-    mentor_count = sum(1 for entry in matching_players if entry['type'] == 'mentor')
-    trainee_count = sum(1 for entry in matching_players if entry['type'] == 'trainee' or entry['type'] == 'cadet')
-    mentor_embed = ""
-    swat_embed = ""
-    trainee_embed = ""
     if region == "EU1" or region == "EU2":
         title="\U0001F1EA\U0001F1FA " + str(region)
     elif region == "NA1" or region == "NA2":
@@ -149,46 +143,79 @@ async def create_embed(region, matching_players, queue_data):
         title="\U0001F1F8\U0001F1EC " + str(region)
     else:
         title = ""
-    embed = discord.Embed(title=title, description="", colour=0x28ef05)
-    
+        
+    if not matching_players == None:
+        embed = discord.Embed(title=title, description="", colour=0x28ef05)
+        
+        swat_count = sum(1 for entry in matching_players if entry['type'] == 'unknown' or entry['type'] == 'SWAT' or entry['type'] == 'mentor')
+        mentor_count = sum(1 for entry in matching_players if entry['type'] == 'mentor')
+        trainee_count = sum(1 for entry in matching_players if entry['type'] == 'trainee' or entry['type'] == 'cadet')
+        mentor_embed = ""
+        swat_embed = ""
+        trainee_embed = ""
 
-    if mentor_count > 0:
-        for i in matching_players:
-            if i["type"] == "mentor" and i["discord_id"] != None:
-                mentor_embed = mentor_embed + "\n - " + i["username"] + "   (<@" + str(i['discord_id']) + ">)"
-            elif i["type"] == "mentor":
-                mentor_embed = mentor_embed + "\n - " + i["username"] + " (❔)"
-        embed.add_field(name="Mentors Online:", value=mentor_embed, inline=False)
+        
 
-    if swat_count > 0:
-        for i in matching_players:
-            if i["type"] == "SWAT" and i["discord_id"] != None:
-                swat_embed = swat_embed + "\n - " + i["username"] + "   (<@" + str(i['discord_id']) + ">)"
-            elif i["type"] == "SWAT" or i["type"] == "unknown":
-                swat_embed = swat_embed + "\n - " + i["username"] + " (❔)"
-        embed.add_field(name="SWAT Online:", value=swat_embed, inline=False)
+        if mentor_count > 0:
+            for i in matching_players:
+                if i["type"] == "mentor" and i["discord_id"] != None:
+                    mentor_embed = mentor_embed + "\n - " + i["username"] + "   (<@" + str(i['discord_id']) + ">)"
+                elif i["type"] == "mentor":
+                    mentor_embed = mentor_embed + "\n - " + i["username"] + " (❔)"
+            embed.add_field(name="Mentors Online:", value=mentor_embed, inline=False)
 
-    if trainee_count > 0:
-        for i in matching_players:
-            if i["type"] == "trainee" and i["discord_id"] != None:
-                trainee_embed = trainee_embed + "\n - T " + i["username"] + "   (<@" + str(i['discord_id']) + ">)"
-            elif i["type"] == "cadet" and i["discord_id"] != None:
-                trainee_embed = trainee_embed + "\n - C " + i["username"] + "   (<@" + str(i['discord_id']) + ">)"
-        embed.add_field(name="Cadets / Trainees Online:", value=trainee_embed, inline=False)
+        if swat_count > 0:
+            for i in matching_players:
+                if i["type"] == "SWAT" and i["discord_id"] != None:
+                    swat_embed = swat_embed + "\n - " + i["username"] + "   (<@" + str(i['discord_id']) + ">)"
+                elif i["type"] == "SWAT" or i["type"] == "unknown":
+                    swat_embed = swat_embed + "\n - " + i["username"] + " (❔)"
+            embed.add_field(name="SWAT Online:", value=swat_embed, inline=False)
 
-    if trainee_count == 0 and mentor_count == 0 and swat_count == 0:
-        embed.add_field(name="\n*Nobody is online*\n",value="", inline=False)
+        if trainee_count > 0:
+            for i in matching_players:
+                if i["type"] == "trainee" and i["discord_id"] != None:
+                    trainee_embed = trainee_embed + "\n - T " + i["username"] + "   (<@" + str(i['discord_id']) + ">)"
+                elif i["type"] == "cadet" and i["discord_id"] != None:
+                    trainee_embed = trainee_embed + "\n - C " + i["username"] + "   (<@" + str(i['discord_id']) + ">)"
+            embed.add_field(name="Cadets / Trainees Online:", value=trainee_embed, inline=False)
 
-    emoji = client.get_emoji(123456789012345678)  # Emoji-ID hier einfügen
-    if not emoji:
-        emoji = "⚫"
+        if trainee_count == 0 and mentor_count == 0 and swat_count == 0:
+            embed.add_field(name="\n*Nobody is online*\n",value="", inline=False)
 
-    embed.add_field(name=emoji + "SWAT:", value="``` " + str(swat_count) + "```", inline=True)
-    embed.add_field(name="🎮Players:", value="```" + str(queue_data[region]["Players"]) + "/" + str(queue_data[region]["MaxPlayers"]) + "```", inline=True)
-    embed.add_field(name="⌛Queue", value="```" + str(queue_data[region]["QueuedPlayers"]) + "```", inline=True)
-    embed.set_footer(text="Refreshes every 60 second")
-    embed.timestamp = datetime.now()
-    
+        emoji = client.get_emoji(123456789012345678)  # Emoji-ID hier einfügen
+        if not emoji:
+            emoji = "⚫"
+
+        if not queue_data == None:
+            embed.add_field(name=emoji + "SWAT:", value="``` " + str(swat_count) + "```", inline=True)
+            embed.add_field(name="🎮Players:", value="```" + str(queue_data[region]["Players"]) + "/" + str(queue_data[region]["MaxPlayers"]) + "```", inline=True)
+            embed.add_field(name="⌛Queue", value="```" + str(queue_data[region]["QueuedPlayers"]) + "```", inline=True)
+        else:
+            embed.add_field(name=emoji + "SWAT:", value="```ERROR```", inline=True)
+            embed.add_field(name="🎮Players:", value="```ERROR```", inline=True)
+            embed.add_field(name="⌛Queue", value="```ERROR```", inline=True)
+        embed.set_footer(text="Refreshes every 60 second")
+        embed.timestamp = datetime.now()
+    else:
+        embed = discord.Embed(title=title, description="", colour=0x28ef05)
+        
+        embed.add_field(name="It looks like the API is down -> no Data", value="", inline=False)
+        
+        emoji = client.get_emoji(123456789012345678)  # Emoji-ID hier einfügen
+        if not emoji:
+            emoji = "⚫"
+
+        if not queue_data == None:
+            embed.add_field(name=emoji + "SWAT:", value="``` " + str(swat_count) + "```", inline=True)
+            embed.add_field(name="🎮Players:", value="```" + str(queue_data[region]["Players"]) + "/" + str(queue_data[region]["MaxPlayers"]) + "```", inline=True)
+            embed.add_field(name="⌛Queue", value="```" + str(queue_data[region]["QueuedPlayers"]) + "```", inline=True)
+        else:
+            embed.add_field(name=emoji + "SWAT:", value="```ERROR```", inline=True)
+            embed.add_field(name="🎮Players:", value="```ERROR```", inline=True)
+            embed.add_field(name="⌛Queue", value="```ERROR```", inline=True)
+        embed.set_footer(text="Refreshes every 60 second")
+        embed.timestamp = datetime.now()
     return embed
 
 
