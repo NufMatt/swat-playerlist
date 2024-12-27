@@ -18,6 +18,7 @@ import json
 import datetime
 from datetime import datetime, timedelta
 import time
+import re
 
 # Bot-Setup
 intents = discord.Intents.default()
@@ -274,12 +275,13 @@ async def update_game_status():
                     continue  # Überspringe, wenn der Nutzername bereits in matching_players ist
 
                 if username.startswith("[SWAT] "):  # Spieler hat SWAT im Namen
-                    cleaned_username = username.replace("[SWAT] ", "")
+                    cleaned_username = re.sub(r'^\s*\[SWAT\]\s*|\s*\[SWAT\]\s*$', '', username)
                     discord_found = False
 
                     for discord_name, details in discord_cache["members"].items():
-                        discord_name = discord_name.replace(" [SWAT]", "")
-                        if str(cleaned_username) == str(discord_name):  # Nutzername auf Discord gefunden
+                        discord_name = re.sub(r'^\s*\[SWAT\]\s*|\s*\[SWAT\]\s*$', '', discord_name)
+
+                        if str(cleaned_username.lower()) == str(discord_name.lower()):  # Nutzername auf Discord gefunden
                             discord_found = True
                             user_type = "mentor" if MENTOR_ROLE_ID in details["roles"] else "SWAT"
                             matching_players.append({
@@ -301,11 +303,10 @@ async def update_game_status():
                 else:  # Spieler ohne SWAT-Tag
                     for discord_name, details in discord_cache["members"].items():
                         if discord_name.endswith(" [CADET]"):
-                            discord_name = discord_name.replace(" [CADET]", "")
+                            discord_name = re.sub(r'\s*\[CADET\]$', '', discord_name)
                         elif discord_name.endswith(" [TRAINEE]"):
-                            discord_name = discord_name.replace(" [TRAINEE]", "")
-                            
-                        if username == discord_name:
+                            discord_name = re.sub(r'\s*\[TRAINEE\]$', '', discord_name)
+                        if username.lower() == discord_name.lower():
                             if CADET_ROLE_ID in details["roles"]:
                                 matching_players.append({
                                     "username": username,
