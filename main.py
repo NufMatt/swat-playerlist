@@ -179,7 +179,7 @@ async def create_embed(region, matching_players, queue_data):
     if trainee_count == 0 and mentor_count == 0 and swat_count == 0:
         embed.add_field(name="\n*Nobody is online*\n",value="", inline=False)
 
-    emoji = client.get_emoji(123456789012345678)  # Emoji-ID hier einfügen
+    emoji = client.get_emoji(1196404423874854992)  # Emoji-ID hier einfügen
     if not emoji:
         emoji = "⚫"
 
