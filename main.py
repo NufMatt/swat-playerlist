@@ -183,9 +183,9 @@ async def create_embed(region, matching_players, queue_data):
     if not emoji:
         emoji = "⚫"
 
-    embed.add_field(name=emoji + "SWAT:", value="``` " + str(swat_count) + "```", inline=True)
-    embed.add_field(name="🎮Players:", value="```" + str(queue_data[region]["Players"]) + "/" + str(queue_data[region]["MaxPlayers"]) + "```", inline=True)
-    embed.add_field(name="⌛Queue", value="```" + str(queue_data[region]["QueuedPlayers"]) + "```", inline=True)
+    embed.add_field(name=str(emoji) + " SWAT:", value="``` " + str(swat_count) + "```", inline=True)
+    embed.add_field(name="🎮 Players:", value="```" + str(queue_data[region]["Players"]) + "/" + str(queue_data[region]["MaxPlayers"]) + "```", inline=True)
+    embed.add_field(name="⌛ Queue", value="```" + str(queue_data[region]["QueuedPlayers"]) + "```", inline=True)
     embed.set_footer(text="Refreshes every 60 second")
     embed.timestamp = datetime.now()
     
