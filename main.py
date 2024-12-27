@@ -192,7 +192,7 @@ async def create_embed(region, matching_players, queue_data):
         if mentor_count > 0:
             for i in matching_players:
                 if i["type"] == "mentor" and i["discord_id"] != None:
-                    mentor_embed = mentor_embed + "\n - " + i["username"] + "   (<@" + str(i['discord_id']) + ">)"
+                    mentor_embed = mentor_embed + "\n - " + i["username"] + " (<@" + str(i['discord_id']) + ">)"
                 elif i["type"] == "mentor":
                     mentor_embed = mentor_embed + "\n - " + i["username"] + " (❔)"
             embed.add_field(name=emoji_swat_mentor + "Mentors Online:", value=mentor_embed, inline=False)
@@ -200,7 +200,7 @@ async def create_embed(region, matching_players, queue_data):
         if swat_count_no_mentor > 0:
             for i in matching_players:
                 if i["type"] == "SWAT" and i["discord_id"] != None:
-                    swat_embed = swat_embed + "\n - " + i["username"] + "   (<@" + str(i['discord_id']) + ">)"
+                    swat_embed = swat_embed + "\n - " + i["username"] + " (<@" + str(i['discord_id']) + ">)"
                 elif i["type"] == "SWAT" or i["type"] == "unknown":
                     swat_embed = swat_embed + "\n - " + i["username"] + " (❔)"
             embed.add_field(name="SWAT Online:", value=swat_embed, inline=False)
@@ -208,9 +208,9 @@ async def create_embed(region, matching_players, queue_data):
         if trainee_count > 0:
             for i in matching_players:
                 if i["type"] == "trainee" and i["discord_id"] != None:
-                    trainee_embed = trainee_embed + "\n" + emoji_swat_trainee + " " + i["username"] + "   (<@" + str(i['discord_id']) + ">)"
+                    trainee_embed = trainee_embed + "\n" + emoji_swat_trainee + " " + i["username"] + " (<@" + str(i['discord_id']) + ">)"
                 elif i["type"] == "cadet" and i["discord_id"] != None:
-                    trainee_embed = trainee_embed + "\n" + emoji_swat_cadet + " " + i["username"] + "   (<@" + str(i['discord_id']) + ">)"
+                    trainee_embed = trainee_embed + "\n" + emoji_swat_cadet + " " + i["username"] + " (<@" + str(i['discord_id']) + ">)"
             embed.add_field(name="Cadets / Trainees Online:", value=trainee_embed, inline=False)
 
         if trainee_count == 0 and mentor_count == 0 and swat_count == 0:
