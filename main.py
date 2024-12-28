@@ -220,11 +220,11 @@ async def create_embed(region, matching_players, queue_data):
         if not queue_data == None:
             embed.add_field(name=emoji_swat_logo + "SWAT:", value="``` " + str(swat_count) + "```", inline=True)
             embed.add_field(name="🎮Players:", value="```" + str(queue_data[region]["Players"]) + "/" + str(queue_data[region]["MaxPlayers"]) + "```", inline=True)
-            embed.add_field(name="⌛Queue", value="```" + str(queue_data[region]["QueuedPlayers"]) + "```", inline=True)
+            embed.add_field(name="⌛Queue:", value="```" + str(queue_data[region]["QueuedPlayers"]) + "```", inline=True)
         else:
             embed.add_field(name=emoji_swat_logo + "SWAT:", value="``` " + str(swat_count) + "```", inline=True)
             embed.add_field(name="🎮Players:", value="```no data```", inline=True)
-            embed.add_field(name="⌛Queue", value="```no data```", inline=True)
+            embed.add_field(name="⌛Queue:", value="```no data```", inline=True)
         embed.set_footer(text="Refreshes every 60 second")
         embed.timestamp = datetime.now()
 
@@ -237,11 +237,11 @@ async def create_embed(region, matching_players, queue_data):
             swat_count = "no data"
             embed.add_field(name=emoji_swat_logo + "SWAT:", value="``` " + str(swat_count) + "```", inline=True)
             embed.add_field(name="🎮Players:", value="```" + str(queue_data[region]["Players"]) + "/" + str(queue_data[region]["MaxPlayers"]) + "```", inline=True)
-            embed.add_field(name="⌛Queue", value="```" + str(queue_data[region]["QueuedPlayers"]) + "```", inline=True)
+            embed.add_field(name="⌛Queue:", value="```" + str(queue_data[region]["QueuedPlayers"]) + "```", inline=True)
         else:
             embed.add_field(name=emoji_swat_logo + "SWAT:", value="``` " + str(swat_count) + "```", inline=True)
             embed.add_field(name="🎮Players:", value="```no data```", inline=True)
-            embed.add_field(name="⌛Queue", value="```no data```", inline=True)
+            embed.add_field(name="⌛Queue:", value="```no data```", inline=True)
         embed.set_footer(text="Refreshes every 60 second")
         embed.timestamp = datetime.now()
     return embed
