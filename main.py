@@ -206,17 +206,21 @@ async def create_embed(region, matching_players, queue_data, fivem_data):
     else:
         title = ""
 
-    time = datetime.fromisoformat(queue_data[region]["LastHeartbeatDateTime"].replace("Z", "+00:00"))
-
-    # Check if more than half an hour ago
-    if datetime.now(pytz.UTC) - time > timedelta(minutes=30):
-        print("Server seems offline: More than half an hour ago")
-        matching_players = None
-        queue_data = None
-        offline = True
+    if fivem_data[region] == None:
+            restart_timer = "*No time data available!*"
+            offline = False
     else:
-        print("Server is online")
-        offline = False
+        time = datetime.fromisoformat(queue_data[region]["LastHeartbeatDateTime"].replace("Z", "+00:00"))
+
+        # Check if more than half an hour ago
+        if datetime.now(pytz.UTC) - time > timedelta(minutes=30) or queue_data[region] == []:
+            print("Server seems offline: More than half an hour ago")
+            matching_players = None
+            queue_data = None
+            offline = True
+        else:
+            print("Server is online")
+            offline = False
     
     
     emoji_swat_logo = client.get_emoji(1196404423874854992)  # Emoji-ID hier einfügen

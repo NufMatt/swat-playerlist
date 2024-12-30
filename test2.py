@@ -16,6 +16,15 @@ def convert_time(input_str):
     remaining_time = saturday_2359 - now
     remaining_minutes = remaining_time.total_seconds() / 60
     game_minutes = remaining_minutes / 48
-    return game_minutes
+    hours = int(game_minutes // 60)
+    remaining_minutes = int(game_minutes % 60)
+    
+    if hours == 1:
+        restart_timer = f"Next restart in ~{hours} hour and {remaining_minutes} minutes"
+    elif hours > 1:
+        restart_timer = f"Next restart in ~{hours} hours and {remaining_minutes} minutes"
+    else:
+        restart_timer = f"Next restart in ~{remaining_minutes} minutes"
+    return restart_timer
 
-print(convert_time("Saturday 23:59"))
+print(convert_time("Monday 05:59"))
