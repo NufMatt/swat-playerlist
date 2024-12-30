@@ -46,13 +46,18 @@ API_URLS_FIVEM = {
     "SEA": "https://servers-frontend.fivem.net/api/servers/single/apyap9",
 }
 
-CHECK_INTERVAL = 120
+CHECK_INTERVAL = 60
 CACHE_UPDATE_INTERVAL = 300
 STATUS_CHANNEL_ID = 1320463232128913551  # Ersetze mit der ID des Status-Kanals
 GUILD_ID = 1300519755622383689  # Ersetze mit der ID des Ziel-Servers
 MENTOR_ROLE_ID = 1303048285040410644
 CADET_ROLE_ID = 962226985222959145
 TRAINEE_ROLE_ID = 1033432392758722682
+
+fivem_data_cache = {
+    "timestamp": None,
+    "data": None
+}
 
 embeds = []
 
@@ -84,7 +89,7 @@ async def fetch_players(region):
             print(f"Keine API-URL für Region {region} definiert.")
             return []
         try:
-            await asyncio.sleep(1)
+            await asyncio.sleep(3)
             response = requests.get(api_url)
             response.raise_for_status()
             response.encoding = 'utf-8'
@@ -118,7 +123,7 @@ async def getqueuedata():
 def convert_time(input_str):
     weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
     day_of_week_str, time_str = input_str.split()
-    day_of_week = (weekdays.index(day_of_week_str))+1
+    day_of_week = (weekdays.index(day_of_week_str))
     input_time = datetime.strptime(time_str, "%H:%M").replace(year=datetime.now().year)
     now = datetime.now()
     days_difference = (day_of_week - now.weekday()) % 7
@@ -129,13 +134,21 @@ def convert_time(input_str):
     saturday = now + timedelta(days=days_until_saturday)
     saturday_2359 = saturday.replace(hour=23, minute=59, second=0, microsecond=0)
     remaining_time = saturday_2359 - now
-    remaining_minutes = remaining_time.total_seconds() / 60
-    game_minutes = remaining_minutes / 48
+    remaining_minutes = remaining_time.total_seconds() / 3600
+    game_minutes = remaining_minutes
     return int(game_minutes)
 
 async def get_fivem_data():
-    fivem_data = {}
+    global fivem_data_cache
+    now = datetime.now()
+    # Check if the cache is still valid (e.g., 2 updates or 4 minutes)
+    if fivem_data_cache["timestamp"] and (now - fivem_data_cache["timestamp"]) < timedelta(minutes=2):
+        print("  -> Using cached FiveM data.")
+        return fivem_data_cache["data"]
 
+    # Update cache
+    print("  -> Fetching new FiveM data.")
+    fivem_data = {}
     for region, url in API_URLS_FIVEM.items():
         try:
             await asyncio.sleep(3)
@@ -145,8 +158,11 @@ async def get_fivem_data():
             response.encoding = 'utf-8'
             fivem_data[region] = response.json()
         except requests.RequestException as e:
-            print(f"Error fetching data for {region}: {e}")
+            print(f"  -> Error fetching data for {region}: {e}")
             fivem_data[region] = None
+
+    fivem_data_cache["timestamp"] = now
+    fivem_data_cache["data"] = fivem_data
     return fivem_data
 
 ##
@@ -247,10 +263,12 @@ async def create_embed(region, matching_players, queue_data, fivem_data):
             hours = convert_time(fivem_data[region]["Data"]["vars"]["Time"]) // 60
             remaining_minutes = convert_time(fivem_data[region]["Data"]["vars"]["Time"]) % 60
 
-            if hours > 0:
-                restart_timer = f"*Next restart in {hours} hours and {remaining_minutes} minutes*"
+            if hours == 1:
+                restart_timer = f"*Next restart in ~{hours} hour and {remaining_minutes} minutes*"
+            elif hours > 1:
+                restart_timer = f"*Next restart in ~{hours} hours and {remaining_minutes} minutes*"
             else:
-                restart_timer = f"*Next restart in {remaining_minutes} minutes*"
+                restart_timer = f"*Next restart in ~{remaining_minutes} minutes*"
             print("Time in region *" + str(region) + "* is " + str(fivem_data[region]["Data"]["vars"]["Time"]))
  
 
@@ -316,12 +334,14 @@ async def create_embed(region, matching_players, queue_data, fivem_data):
 ##
 ## CHECK PLAYERS
 ##
+loop_counter = 0
 
 @tasks.loop(seconds=CHECK_INTERVAL)
 async def update_game_status():
     await update_discord_cache()
     
     queue_data = await getqueuedata()
+    
     fivem_data = await get_fivem_data()
     
     channel = client.get_channel(STATUS_CHANNEL_ID)
