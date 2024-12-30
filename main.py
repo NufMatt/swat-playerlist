@@ -8,8 +8,6 @@
 # EU 2: abo683
 # SEA : apyap9
 
-
-
 import discord
 from discord.ext import tasks, commands
 import requests
@@ -17,8 +15,6 @@ import asyncio
 import json
 import datetime
 from datetime import datetime, timedelta
-import time
-import aiohttp
 import pytz
 
 # Bot-Setup
@@ -48,8 +44,8 @@ API_URLS_FIVEM = {
 
 CHECK_INTERVAL = 60
 CACHE_UPDATE_INTERVAL = 300
-STATUS_CHANNEL_ID = 1320463232128913551  # Ersetze mit der ID des Status-Kanals
-GUILD_ID = 1300519755622383689  # Ersetze mit der ID des Ziel-Servers
+STATUS_CHANNEL_ID = 1322097975324971068  # Ersetze mit der ID des Status-Kanals
+GUILD_ID = 958271853158350850  # Ersetze mit der ID des Ziel-Servers
 MENTOR_ROLE_ID = 1303048285040410644
 CADET_ROLE_ID = 962226985222959145
 TRAINEE_ROLE_ID = 1033432392758722682
@@ -460,7 +456,7 @@ async def update_game_status():
         f.close()
 
 # Token laden und Bot starten
-with open("token-test.txt", "r") as file:
+with open("token.txt", "r") as file:
     TOKEN = file.read().strip()
 
 client.run(TOKEN)
