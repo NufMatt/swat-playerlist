@@ -218,7 +218,6 @@ async def create_embed(region, matching_players, queue_data, fivem_data):
         title="\U0001F1F8\U0001F1EC " + str(region)
     else:
         title = ""
-
     try:
         if not (fivem_data[region] == None):
             time = datetime.fromisoformat(queue_data[region]["LastHeartbeatDateTime"].replace("Z", "+00:00"))
@@ -277,18 +276,19 @@ async def create_embed(region, matching_players, queue_data, fivem_data):
         if fivem_data[region] == None:
             restart_timer = "*No restart data available!*"
         else:
-            hours = convert_time(fivem_data[region]["vars"]["Time"]) // 60
-            remaining_minutes = convert_time(fivem_data[region]["vars"]["Time"]) % 60
+            try:
+                hours = convert_time(fivem_data[region]["Data"]["vars"]["Time"]) // 60
+                remaining_minutes = convert_time(fivem_data[region]["Data"]["vars"]["Time"]) % 60
 
-            if hours == 1:
-                restart_timer = f"*Next restart in ~{hours} hour and {remaining_minutes} minutes*"
-            elif hours > 1:
-                restart_timer = f"*Next restart in ~{hours} hours and {remaining_minutes} minutes*"
-            else:
-                restart_timer = f"*Next restart in ~{remaining_minutes} minutes*"
-            log("Time in region *" + str(region) + "* is " + str(fivem_data[region]["vars"]["Time"]))
- 
-
+                if hours == 1:
+                    restart_timer = f"*Next restart in ~{hours} hour and {remaining_minutes} minutes*"
+                elif hours > 1:
+                    restart_timer = f"*Next restart in ~{hours} hours and {remaining_minutes} minutes*"
+                else:
+                    restart_timer = f"*Next restart in ~{remaining_minutes} minutes*"
+                print("Time in region *" + str(region) + "* is " + str(fivem_data[region]["Data"]["vars"]["Time"]))
+            except:
+                restart_timer = "*No restart data available!*"
         if mentor_count > 0:
             for i in matching_players:
                 if i["type"] == "mentor" and i["discord_id"] != None:
