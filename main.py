@@ -64,6 +64,11 @@ discord_cache = {
     "members": {},
 }
 
+def timestamp():
+    now = datetime.now()
+    dt_string = str(now.strftime("[%d.%m.%Y %H:%M:%S] "))
+    return dt_string
+
 @client.event
 async def on_ready():
     print(f"Bot ist online als {client.user}")
@@ -206,7 +211,14 @@ async def create_embed(region, matching_players, queue_data, fivem_data):
     else:
         title = ""
 
-    time = datetime.fromisoformat(queue_data[region]["LastHeartbeatDateTime"].replace("Z", "+00:00"))
+    try:
+        if not (fivem_data[region] == None):
+            time = datetime.fromisoformat(queue_data[region]["LastHeartbeatDateTime"].replace("Z", "+00:00"))
+        else:
+            restart_timer = "*No time data available!*"
+    except:
+        restart_timer = "*No time data available!*"
+        
 
     # Check if more than half an hour ago
     if datetime.now(pytz.UTC) - time > timedelta(minutes=30):
