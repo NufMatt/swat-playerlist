@@ -7,6 +7,15 @@
 # EU 1: kx98er
 # EU 2: abo683
 # SEA : apyap9
+#
+# SWAT Ranking:
+# Officer: 958272804011245618
+# Corporal: 966118860128411681
+# Seargent: 958272773904543775
+# Lieutenant: 958272744800260126
+# Commander: 958272697291407360
+# Deputy Chief: 958272662080225290
+# Chief: 958272560905195521
 
 import discord
 from discord.ext import tasks, commands
@@ -49,6 +58,8 @@ API_URLS_FIVEM = {
     "SEA": "https://51.79.231.52:30130/info.json",
 }
 
+retries = max_retries=2
+
 if not TESTING:
     # SWAT CHANNEL AND ROLES
     STATUS_CHANNEL_ID = 1322097975324971068
@@ -56,6 +67,7 @@ if not TESTING:
     MENTOR_ROLE_ID = 1303048285040410644
     CADET_ROLE_ID = 962226985222959145
     TRAINEE_ROLE_ID = 1033432392758722682
+    SWAT_ROLE_ID = 958274314036195359
 else:
     # TESTING CHANNEL AND ROLES
     STATUS_CHANNEL_ID = 1320463232128913551
@@ -64,6 +76,34 @@ else:
     CADET_ROLE_ID = 962226985222959145
     TRAINEE_ROLE_ID = 1033432392758722682
 
+# Define the rank hierarchy for sorting
+RANK_HIERARCHY = [
+    "Mentor",
+    "Chief",
+    "Deputy Chief",
+    "Commander",
+    "Lieutenant",
+    "Seargent",
+    "Corporal",
+    "Officer",
+    "Cadet",
+    "Trainee",
+    None
+]
+
+# Define the role-to-rank mapping
+ROLE_TO_RANK = {
+    1303048285040410644: "Mentor",
+    958272560905195521: "Chief",
+    958272662080225290: "Deputy Chief",
+    958272697291407360: "Commander",
+    958272744800260126: "Lieutenant",
+    958272773904543775: "Seargent",
+    966118860128411681: "Corporal",
+    958272804011245618: "Officer",
+    962226985222959145: "Cadet",
+    1033432392758722682: "Trainee"
+}
 ### Setting variables
 embeds = []
 discord_cache = {
@@ -83,6 +123,12 @@ def print_variable(variable, name):
         print("\n")
         log("---------- END PRINTING VARIABLE")
         print("\n")
+
+def get_rank_from_roles(roles):
+    for role_id, rank in ROLE_TO_RANK.items():
+        if role_id in roles:
+            return rank
+    return None
 
 @client.event
 async def on_ready():
@@ -394,16 +440,18 @@ async def update_game_status():
                             matching_players.append({
                                 "username": username,
                                 "type": user_type,
-                                "discord_id": details["id"]
+                                "discord_id": details["id"],
+                                "rank": get_rank_from_roles(details["roles"])
                             })
-                            log(f"Spieler ist auf Discord: {username} ({user_type})")
+                            log(f"Spieler ist auf Discord: {username} ({user_type} -> " + str(get_rank_from_roles(details["roles"])) + ")")
                             break  # Discord-Match gefunden, weitere Prüfung abbrechen
 
                     if not discord_found:  # Kein Match auf Discord gefunden
                         matching_players.append({
                             "username": username,
                             "type": "SWAT",
-                            "discord_id": None
+                            "discord_id": None,
+                            "rank": None
                         })
                         log(f"Spieler nicht auf Discord: {username}")
 
@@ -413,26 +461,40 @@ async def update_game_status():
                             discord_name = re.sub(r'\s*\[CADET\]$', '', discord_name)
                         elif discord_name.endswith(" [TRAINEE]"):
                             discord_name = re.sub(r'\s*\[TRAINEE\]$', '', discord_name)
+                        elif discord_name.endswith(" [SWAT]"):
+                            discord_name = re.sub(r'\s*\[SWAT\]$', '', discord_name)
                         if username.lower() == discord_name.lower():
                             if CADET_ROLE_ID in details["roles"]:
                                 matching_players.append({
                                     "username": username,
                                     "type": "cadet",
-                                    "discord_id": details["id"]
+                                    "discord_id": details["id"],
+                                    "rank": get_rank_from_roles(details["roles"])
                                 })
-                                log(f"Spieler ist ein Cadet: {username}")
+                                log(f"Spieler ist ein Cadet: {username} -> " + str(get_rank_from_roles(details["roles"])) + ")")
                                 break
                             elif TRAINEE_ROLE_ID in details["roles"]:
                                 matching_players.append({
                                     "username": username,
                                     "type": "trainee",
-                                    "discord_id": details["id"]
+                                    "discord_id": details["id"],
+                                    "rank": get_rank_from_roles(details["roles"])
                                 })
-                                log(f"Spieler ist ein Trainee: {username}")
+                                log(f"Spieler ist ein Trainee: {username} -> " + str(get_rank_from_roles(details["roles"])) + ")")
+                                break
+                            elif SWAT_ROLE_ID in details["roles"]:
+                                matching_players.append({
+                                    "username": username,
+                                    "type": "SWAT",
+                                    "discord_id": details["id"],
+                                    "rank": get_rank_from_roles(details["roles"])
+                                })
+                                log(f"Spieler ist SWAT, aber noch kein API Update: {username} (SWAT -> " + str(get_rank_from_roles(details["roles"])) + ")")
                                 break
         else:
             matching_players = None
 
+        matching_players.sort(key=lambda x: RANK_HIERARCHY.index(x["rank"]) if x["rank"] in RANK_HIERARCHY else len(RANK_HIERARCHY), reverse=False)
         print_variable(matching_players, "matching players")
 
         with open(embeds_file_name, 'r') as file_obj:
