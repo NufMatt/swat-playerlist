@@ -28,6 +28,7 @@ from datetime import datetime, timedelta
 import re
 import pytz
 import logging
+import os
 
 # Bot-Setup
 intents = discord.Intents.default()
@@ -115,13 +116,14 @@ discord_cache = {
 ###
 ### LOGGING
 ###
+
 log_filename = datetime.now().strftime('%Y-%m-%d_%H-%M-%S.log')
+log_filepath = os.path.join("/opt/swat-serverlist/", log_filename)
 logging.basicConfig(
-    filename="/opt/swat-server-list/" + str(log_filename),  # Der Log-Dateiname ist jetzt dynamisch
+    filename=log_filepath,  # Der Log-Dateiname ist jetzt dynamisch
     level=logging.INFO,  # Alle Log-Ereignisse von INFO und höher werden geloggt
     format='%(asctime)s - %(levelname)s - %(message)s',  # Format der Log-Nachrichten
 )
-
 
 def send_telegram(message_temp):
     with open("tgtoken.txt", "r") as file:
