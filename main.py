@@ -134,13 +134,13 @@ def send_telegram(message_temp):
 def log(type, content):
     print(f"[{datetime.now().strftime('%d.%m.%Y %H:%M:%S')}] {content}")
     if type == "warning":
-        logging.warning(f"[{datetime.now().strftime('%d.%m.%Y %H:%M:%S')}] {content}")
+        logging.warning(content)
         send_telegram(f"WARNING: [{datetime.now().strftime('%d.%m.%Y %H:%M:%S')}] {content}")
     elif type == "error":
-        logging.error(f"[{datetime.now().strftime('%d.%m.%Y %H:%M:%S')}] {content}")
+        logging.error(content)
         send_telegram(f"ERROR: [{datetime.now().strftime('%d.%m.%Y %H:%M:%S')}] {content}")
     else:
-        logging.info(f"[{datetime.now().strftime('%d.%m.%Y %H:%M:%S')}] {content}")
+        logging.info(content)
 
 def print_variable(variable, name):
     if TESTING:
