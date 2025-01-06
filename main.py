@@ -26,8 +26,8 @@ import json
 import datetime
 from datetime import datetime, timedelta
 import re
-import time
 import pytz
+import logging
 
 # Bot-Setup
 intents = discord.Intents.default()
@@ -59,6 +59,7 @@ API_URLS_FIVEM = {
 }
 
 retries = max_retries=2
+chat_id = "188622786"
 
 if not TESTING:
     # SWAT CHANNEL AND ROLES
@@ -111,17 +112,42 @@ discord_cache = {
     "members": {},
 }
 
-def log(content):
+###
+### LOGGING
+###
+log_filename = datetime.now().strftime('%Y-%m-%d_%H-%M-%S.log')
+logging.basicConfig(
+    filename=log_filename,  # Der Log-Dateiname ist jetzt dynamisch
+    level=logging.INFO,  # Alle Log-Ereignisse von INFO und höher werden geloggt
+    format='%(asctime)s - %(levelname)s - %(message)s',  # Format der Log-Nachrichten
+)
+
+
+def send_telegram(message_temp):
+    with open("tgtoken.txt", "r") as file:
+        TGTOKEN = file.read().strip()
+    url = f"https://api.telegram.org/bot{TGTOKEN}/sendMessage?chat_id={chat_id}&text={message_temp}"
+    requests.get(url).json()
+
+def log(type, content):
     print(f"[{datetime.now().strftime('%d.%m.%Y %H:%M:%S')}] {content}")
+    if type == "warning":
+        logging.warning(f"[{datetime.now().strftime('%d.%m.%Y %H:%M:%S')}] {content}")
+        send_telegram(f"WARNING: [{datetime.now().strftime('%d.%m.%Y %H:%M:%S')}] {content}")
+    elif type == "error":
+        logging.error(f"[{datetime.now().strftime('%d.%m.%Y %H:%M:%S')}] {content}")
+        send_telegram(f"ERROR: [{datetime.now().strftime('%d.%m.%Y %H:%M:%S')}] {content}")
+    else:
+        logging.info(f"[{datetime.now().strftime('%d.%m.%Y %H:%M:%S')}] {content}")
 
 def print_variable(variable, name):
     if TESTING:
         print("\n")
-        log("---------- PRINTING VARIABLE " + str(name))
+        log("info", "---------- PRINTING VARIABLE " + str(name))
         print("\n")
         print(variable)
         print("\n")
-        log("---------- END PRINTING VARIABLE")
+        log("info", "---------- END PRINTING VARIABLE")
         print("\n")
 
 def get_rank_from_roles(roles):
@@ -132,8 +158,12 @@ def get_rank_from_roles(roles):
 
 @client.event
 async def on_ready():
-    log(f"Bot ist online als {client.user}")
+    log("info", f"Bot ist online als {client.user}")
     update_game_status.start()
+
+@client.event
+async def on_error(event, *args, **kwargs):
+    log("error", f'Fehler im Event {event}: {args} {kwargs}')
 
 async def fetch_players(region):
     if USE_LOCAL_JSON:
@@ -142,15 +172,15 @@ async def fetch_players(region):
                 data = json.load(file)
                 return data
         except FileNotFoundError:
-            log(f" > Lokale JSON-Datei {LOCAL_JSON_FILE} nicht gefunden.")
+            log("error", f" > Lokale JSON-Datei {LOCAL_JSON_FILE} nicht gefunden.")
             return []
         except json.JSONDecodeError as e:
-            log(f" > Fehler beim Lesen der JSON-Datei: {e}")
+            log("error", f" > Fehler beim Lesen der JSON-Datei: {e}")
             return []
     else:
         api_url = API_URLS.get(region)
         if not api_url:
-            log(f" > Keine API-URL für Region {region} definiert.")
+            log("error", f" > Keine API-URL für Region {region} definiert.")
             return []
         try:
             await asyncio.sleep(3)
@@ -161,7 +191,7 @@ async def fetch_players(region):
             print_variable(data, "data")
             return data
         except requests.RequestException as e:
-            log(f" > Fehler beim Abrufen der API-Daten von {api_url}: {e}")
+            log("error", f" > Fehler beim Abrufen der API-Daten von {api_url}: {e}")
             return None # return None überall da, wo fetch_players ausgelesen wird
 
 def clean_discord_name(name):
@@ -181,7 +211,7 @@ async def getqueuedata():
         print_variable(queue_info, "queuedata -> fetch")
         return queue_info
     except requests.RequestException as e:
-        log(f"Fehler beim Abrufen der Queue-Daten: {e}")
+        log("error", f"Fehler beim Abrufen der Queue-Daten: {e}")
         return None
 
 ##
@@ -204,13 +234,13 @@ def convert_time(input_str):
         return irl_minutes_remaining
     
     except Exception as e:
-        log("Fehler beim Umrechnen der Zeit: " + str(e))
+        log("error", "Fehler beim Umrechnen der Zeit: " + str(e))
         return 0
 
 async def get_fivem_data():
     global fivem_data_cache
     now = datetime.now()
-    log("  -> Fetching new FiveM data.")
+    log("info", "FiveM Daten werden abgerufen")
     fivem_data = {}
     for region, url in API_URLS_FIVEM.items():
         try:
@@ -220,7 +250,7 @@ async def get_fivem_data():
             fivem_data[region] = response.json()
             print_variable(fivem_data[region], "New fetched playerdata from region: " + str(region))
         except requests.RequestException as e:
-            log(f"  -> Error fetching data for {region}: {e}")
+            log("error", f"Fehler beim Abrufen der Fivem Daten in {region}: {e}")
             fivem_data[region] = None
     return fivem_data
 
@@ -232,14 +262,14 @@ async def update_discord_cache():
     global discord_cache
     now = datetime.now()
     if discord_cache["timestamp"] and now - discord_cache["timestamp"] < timedelta(seconds=CACHE_UPDATE_INTERVAL):
-        log("Discord-Cache ist aktuell. Kein Update erforderlich.")
+        log("info", "Discord-Cache ist aktuell. Kein Update erforderlich.")
         return
 
     discord_cache["members"] = {}
     guild = client.get_guild(GUILD_ID)
 
     if not guild:
-        log(f"Bot ist in keinem Server mit der ID {GUILD_ID}.")
+        log("error", f"Bot ist in keinem Server mit der ID {GUILD_ID}.")
         return
 
     for member in guild.members:
@@ -249,7 +279,7 @@ async def update_discord_cache():
             "roles": roles,
         }
     discord_cache["timestamp"] = now
-    log("Discord-Cache wurde aktualisiert!")
+    log("info", "Discord-Cache wurde aktualisiert!")
 
 ##
 ## EMBED ERSTELLEN
@@ -267,21 +297,18 @@ async def create_embed(region, matching_players, queue_data, fivem_data):
 
     try:
         time = datetime.fromisoformat(queue_data[region]["LastHeartbeatDateTime"].replace("Z", "+00:00"))
+        if not (fivem_data[region] == None) and (datetime.now(pytz.UTC) - time > timedelta(minutes=10)):
+            log("info", "Server " + str(region) + " scheint offline zu sein: Letzer Heartbeat länger als 10 Minuten")
+            matching_players = None
+            queue_data = None
+            offline = True
+        else:
+            log("info", "Server " + str(region) + " ist online")
+            offline = False
     except:
+        log("warning", "Keine Neustart-Daten für " + str(region))
         restart_timer = "*No time data available!*"
-        
-
-    # Check if more than half an hour ago
-
-    if not (fivem_data[region] == None) and (datetime.now(pytz.UTC) - time > timedelta(minutes=10)):
-        log("Server " + str(region) + " seems offline: More than half an hour ago")
-        matching_players = None
-        queue_data = None
-        offline = True
-    else:
-        log("Server " + str(region) + " is online")
-        offline = False
-    
+  
     emoji_swat_logo = client.get_emoji(1196404423874854992)  # Emoji-ID hier einfügen
     if not emoji_swat_logo:
         emoji_swat_logo = "⚫"
@@ -330,8 +357,9 @@ async def create_embed(region, matching_players, queue_data, fivem_data):
                         restart_timer = f"*Next restart in ~{hours} hours and {remaining_minutes} minutes*"
                     else:
                         restart_timer = f"*Next restart in ~{remaining_minutes} minutes*"
-                    log("Time in region *" + str(region) + "* is " + str(fivem_data[region]["vars"]["Time"]))
+                    log("info", "Time in region *" + str(region) + "* is " + str(fivem_data[region]["vars"]["Time"]))
         except:
+            log("warning", "Keine Neustart-Daten für " + str(region))
             restart_timer = "*No restart data available!*"
 
         if mentor_count > 0:
@@ -413,11 +441,11 @@ async def update_game_status():
     
     channel = client.get_channel(STATUS_CHANNEL_ID)
     if not channel:
-        log(f"Status-Kanal mit ID {STATUS_CHANNEL_ID} nicht gefunden.")
+        log("error", f"Status-Kanal mit ID {STATUS_CHANNEL_ID} nicht gefunden.")
         return
 
     for region in API_URLS.keys():  # für jeden Server
-        log(f"Verarbeite Region: {region}")
+        log("info", f"Verarbeite Region: {region}")
         players = await fetch_players(region)
 
         if not(players == None):
@@ -443,7 +471,7 @@ async def update_game_status():
                                 "discord_id": details["id"],
                                 "rank": get_rank_from_roles(details["roles"])
                             })
-                            log(f"Spieler ist auf Discord: {username} ({user_type} -> " + str(get_rank_from_roles(details["roles"])) + ")")
+                            log("info", f"Spieler ist auf Discord: {username} ({user_type} -> " + str(get_rank_from_roles(details["roles"])) + ")")
                             break  # Discord-Match gefunden, weitere Prüfung abbrechen
 
                     if not discord_found:  # Kein Match auf Discord gefunden
@@ -453,7 +481,7 @@ async def update_game_status():
                             "discord_id": None,
                             "rank": None
                         })
-                        log(f"Spieler nicht auf Discord: {username}")
+                        log("info", f"Spieler nicht auf Discord: {username}")
 
                 else:  # Spieler ohne SWAT-Tag
                     for discord_name, details in discord_cache["members"].items():
@@ -471,7 +499,7 @@ async def update_game_status():
                                     "discord_id": details["id"],
                                     "rank": get_rank_from_roles(details["roles"])
                                 })
-                                log(f"Spieler ist ein Cadet: {username} -> " + str(get_rank_from_roles(details["roles"])) + ")")
+                                log("info", f"Spieler ist ein Cadet: {username} -> " + str(get_rank_from_roles(details["roles"])) + ")")
                                 break
                             elif TRAINEE_ROLE_ID in details["roles"]:
                                 matching_players.append({
@@ -480,7 +508,7 @@ async def update_game_status():
                                     "discord_id": details["id"],
                                     "rank": get_rank_from_roles(details["roles"])
                                 })
-                                log(f"Spieler ist ein Trainee: {username} -> " + str(get_rank_from_roles(details["roles"])) + ")")
+                                log("info", f"Spieler ist ein Trainee: {username} -> " + str(get_rank_from_roles(details["roles"])) + ")")
                                 break
                             elif SWAT_ROLE_ID in details["roles"]:
                                 matching_players.append({
@@ -489,7 +517,7 @@ async def update_game_status():
                                     "discord_id": details["id"],
                                     "rank": get_rank_from_roles(details["roles"])
                                 })
-                                log(f"Spieler ist SWAT, aber noch kein API Update: {username} (SWAT -> " + str(get_rank_from_roles(details["roles"])) + ")")
+                                log("info", f"Spieler ist SWAT, aber noch kein API Update: {username} (SWAT -> " + str(get_rank_from_roles(details["roles"])) + ")")
                                 break
         else:
             matching_players = None
@@ -510,24 +538,24 @@ async def update_game_status():
             embed_file = json.loads(file_xxxx.read())
 
             
-            log(f"Gefundene Übereinstimmungen für Region {region}: " + str(player_count))
+            log("info", f"Gefundene Übereinstimmungen für Region {region}: " + str(player_count))
             embed_pre = await create_embed(region, matching_players, queue_data, fivem_data)
             for i in embed_file:
                 if i["region"] == region:
                     channel = client.get_channel(i["channel_id"])
                     if channel is None:
-                        log("Kanal nicht gefunden")
+                        log("error", "Kanal nicht gefunden")
                         return
 
                     message = await channel.fetch_message(i["message_id"])
                     if message is None:
-                        log("Nachricht nicht gefunden")
+                        log("error", "Nachricht nicht gefunden")
                         return
                     await asyncio.sleep(1)
                     await message.edit(embed=embed_pre)
         else:
             embed_file = ""
-            log(f"Gefundene Übereinstimmungen für Region {region}:" + str(player_count))
+            log("info", f"Gefundene Übereinstimmungen für Region {region}:" + str(player_count))
             embed_pre = await create_embed(region, matching_players, queue_data, fivem_data)
             embed_send = await channel.send(embed=embed_pre)
             embeds.append({
@@ -537,7 +565,7 @@ async def update_game_status():
             })
 
     if embeds:
-        log(embeds)
+        log("info", embeds)
         f = open(embeds_file_name, "w")
         f.write(json.dumps(embeds))
         f.close()
@@ -551,4 +579,5 @@ else:
 with open(file_name, "r") as file:
     TOKEN = file.read().strip()
 
-client.run(TOKEN)
+while True:
+    client.run(TOKEN)
