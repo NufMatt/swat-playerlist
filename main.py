@@ -117,7 +117,7 @@ discord_cache = {
 ###
 log_filename = datetime.now().strftime('%Y-%m-%d_%H-%M-%S.log')
 logging.basicConfig(
-    filename=log_filename,  # Der Log-Dateiname ist jetzt dynamisch
+    filename="/opt/swat-server-list/" + str(log_filename),  # Der Log-Dateiname ist jetzt dynamisch
     level=logging.INFO,  # Alle Log-Ereignisse von INFO und höher werden geloggt
     format='%(asctime)s - %(levelname)s - %(message)s',  # Format der Log-Nachrichten
 )
