@@ -265,9 +265,9 @@ async def create_embed(region, matching_players, queue_data, fivem_data):
     else:
         title = ""
 
-    if not (fivem_data[region] == None):
+    try:
         time = datetime.fromisoformat(queue_data[region]["LastHeartbeatDateTime"].replace("Z", "+00:00"))
-    else:
+    except:
         restart_timer = "*No time data available!*"
         
 
