@@ -84,6 +84,7 @@ RANK_HIERARCHY = [
     "Chief",
     "Deputy Chief",
     "Commander",
+    "Captain",
     "Lieutenant",
     "Seargent",
     "Corporal",
@@ -99,6 +100,7 @@ ROLE_TO_RANK = {
     958272560905195521: "Chief",
     958272662080225290: "Deputy Chief",
     958272697291407360: "Commander",
+    958272723975553085: "Captain",
     958272744800260126: "Lieutenant",
     958272773904543775: "Seargent",
     966118860128411681: "Corporal",
@@ -353,10 +355,14 @@ async def create_embed(region, matching_players, queue_data, fivem_data):
                     hours = convert_time(fivem_data[region]["vars"]["Time"]) // 60
                     remaining_minutes = convert_time(fivem_data[region]["vars"]["Time"]) % 60
 
-                    if hours == 1:
+                    if hours == 1 and not remaining_minutes == 0:
                         restart_timer = f"*Next restart in ~{hours} hour and {remaining_minutes} minutes*"
-                    elif hours > 1:
+                    elif hours == 1 and remaining_minutes == 0:
+                        restart_timer = f"*Next restart in ~{hours} hour"
+                    elif hours > 1 and not remaining_minutes == 0:
                         restart_timer = f"*Next restart in ~{hours} hours and {remaining_minutes} minutes*"
+                    elif hours > 1 and remaining_minutes == 0:
+                        restart_timer = f"*Next restart in ~{hours} hours"
                     else:
                         restart_timer = f"*Next restart in ~{remaining_minutes} minutes*"
                     log("info", "Time in region *" + str(region) + "* is " + str(fivem_data[region]["vars"]["Time"]))
