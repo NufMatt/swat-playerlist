@@ -359,6 +359,8 @@ async def create_embed(region, matching_players, queue_data, fivem_data):
                         restart_timer = f"*Next restart in ~{hours} hour and {remaining_minutes} minutes*"
                     elif hours == 1 and remaining_minutes == 0:
                         restart_timer = f"*Next restart in ~{hours} hour"
+                    elif hours == 0 and remaining_minutes == 0:
+                        restart_timer = f"*Server is restarting right now!*"
                     elif hours > 1 and not remaining_minutes == 0:
                         restart_timer = f"*Next restart in ~{hours} hours and {remaining_minutes} minutes*"
                     elif hours > 1 and remaining_minutes == 0:
