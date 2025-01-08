@@ -264,7 +264,7 @@ async def get_fivem_data():
                         fivem_data[region] = data
                         print_variable(data, "New fetched playerdata from region: " + str(region))
             except Exception as e:
-                log("error", f"Fehler beim Abrufen der Fivem Daten in {region}: {e}")
+                log("warning", f"Fehler beim Abrufen der Fivem Daten in {region}: {e}")
                 fivem_data[region] = None
     return fivem_data
 
