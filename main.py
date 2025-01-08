@@ -30,6 +30,7 @@ import pytz
 import logging
 import os
 import sys
+import aiohttp
 
 # Bot-Setup
 intents = discord.Intents.default()
@@ -120,8 +121,13 @@ discord_cache = {
 ### LOGGING
 ###
 
+pclogging = True
 log_filename = datetime.now().strftime('%Y-%m-%d_%H-%M-%S.log')
-log_filepath = os.path.join("/opt/swat-server-list/", log_filename)
+if not pclogging:
+    log_filepath = os.path.join("/opt/swat-server-list/", log_filename)
+else:
+    log_filepath = log_filename
+
 logging.basicConfig(
     filename=log_filepath,  # Der Log-Dateiname ist jetzt dynamisch
     level=logging.INFO,  # Alle Log-Ereignisse von INFO und höher werden geloggt
@@ -138,7 +144,6 @@ def log(type, content):
     print(f"[{datetime.now().strftime('%d.%m.%Y %H:%M:%S')}] {content}")
     if type == "warning":
         logging.warning(content)
-        send_telegram(f"WARNING: [{datetime.now().strftime('%d.%m.%Y %H:%M:%S')}] {content}")
     elif type == "error":
         logging.error(content)
         send_telegram(f"ERROR: [{datetime.now().strftime('%d.%m.%Y %H:%M:%S')}] {content}")
@@ -192,16 +197,16 @@ async def fetch_players(region):
             log("error", f" > Keine API-URL für Region {region} definiert.")
             return []
         try:
-            await asyncio.sleep(3)
-            response = requests.get(api_url)
-            response.raise_for_status()
-            response.encoding = 'utf-8'
-            data = json.loads(response.text)
-            print_variable(data, "data")
-            return data
-        except requests.RequestException as e:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(api_url) as response:
+                    response.raise_for_status()
+                    response.encoding = 'utf-8'
+                    data = json.loads(await response.text())
+                    return data
+        except aiohttp.ClientError as e:
             log("error", f" > Fehler beim Abrufen der API-Daten von {api_url}: {e}")
-            return None # return None überall da, wo fetch_players ausgelesen wird
+            return None
+        await asyncio.sleep(0)
 
 def clean_discord_name(name):
     return name.split(" [SWAT]")[0]
@@ -247,20 +252,20 @@ def convert_time(input_str):
         return 0
 
 async def get_fivem_data():
-    global fivem_data_cache
-    now = datetime.now()
-    log("info", "FiveM Daten werden abgerufen")
-    fivem_data = {}
-    for region, url in API_URLS_FIVEM.items():
-        try:
-            response = requests.get(url, verify=False)
-            response.raise_for_status()
-            response.encoding = 'utf-8'
-            fivem_data[region] = response.json()
-            print_variable(fivem_data[region], "New fetched playerdata from region: " + str(region))
-        except requests.RequestException as e:
-            log("error", f"Fehler beim Abrufen der Fivem Daten in {region}: {e}")
-            fivem_data[region] = None
+    async with aiohttp.ClientSession() as session:
+        now = datetime.now()
+        log("info", "FiveM Daten werden abgerufen")
+        fivem_data = {}
+        for region, url in API_URLS_FIVEM.items():
+            try:
+                async with session.get(url, ssl=False, timeout=aiohttp.ClientTimeout(total=3)) as response:
+                        response.raise_for_status()
+                        data = json.loads(await response.text())
+                        fivem_data[region] = data
+                        print_variable(data, "New fetched playerdata from region: " + str(region))
+            except Exception as e:
+                log("error", f"Fehler beim Abrufen der Fivem Daten in {region}: {e}")
+                fivem_data[region] = None
     return fivem_data
 
 ##
@@ -306,18 +311,18 @@ async def create_embed(region, matching_players, queue_data, fivem_data):
 
     try:
         time = datetime.fromisoformat(queue_data[region]["LastHeartbeatDateTime"].replace("Z", "+00:00"))
-        if not (fivem_data[region] == None) and (datetime.now(pytz.UTC) - time > timedelta(minutes=10)):
+        if (datetime.now(pytz.UTC) - time > timedelta(minutes=10)):
             log("info", "Server " + str(region) + " scheint offline zu sein: Letzer Heartbeat länger als 10 Minuten")
             matching_players = None
             queue_data = None
             offline = True
+            last_heartbeat = time
         else:
             log("info", "Server " + str(region) + " ist online")
             offline = False
     except:
         log("warning", "Keine Neustart-Daten für " + str(region))
         restart_timer = "*No time data available!*"
-  
     emoji_swat_logo = client.get_emoji(1196404423874854992)  # Emoji-ID hier einfügen
     if not emoji_swat_logo:
         emoji_swat_logo = "⚫"
@@ -429,7 +434,7 @@ async def create_embed(region, matching_players, queue_data, fivem_data):
         else:
             if offline:
                 swat_count = "no data"
-            embed.add_field(name=emoji_swat_logo + "SWAT:", value="``` " + str(swat_count) + "```", inline=True)
+            embed.add_field(name=emoji_swat_logo + "SWAT:", value="```" + str(swat_count) + "```", inline=True)
             embed.add_field(name="🎮Players:", value="```no data```", inline=True)
             embed.add_field(name="⌛Queue:", value="```no data```", inline=True)
         embed.set_footer(text="Refreshes every 60 second")
@@ -445,7 +450,6 @@ async def update_game_status():
     await update_discord_cache()
     
     queue_data = await getqueuedata()
-    
     fivem_data = await get_fivem_data()
 
     if TESTING:
@@ -488,7 +492,6 @@ async def update_game_status():
                             })
                             log("info", f"Spieler ist auf Discord: {username} ({user_type} -> " + str(get_rank_from_roles(details["roles"])) + ")")
                             break  # Discord-Match gefunden, weitere Prüfung abbrechen
-
                     if not discord_found:  # Kein Match auf Discord gefunden
                         matching_players.append({
                             "username": username,
@@ -552,7 +555,6 @@ async def update_game_status():
             file_xxxx = open(embeds_file_name, "r")
             embed_file = json.loads(file_xxxx.read())
 
-            
             log("info", f"Gefundene Übereinstimmungen für Region {region}: " + str(player_count))
             embed_pre = await create_embed(region, matching_players, queue_data, fivem_data)
             for i in embed_file:
