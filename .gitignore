@@ -29,7 +29,7 @@ token.txt
 token-test.txt
 test.py
 test2.py
-main -testing.py
+config.py
 tgtoken.txt
 # PyInstaller
 #  Usually these files are written by a python script from a template

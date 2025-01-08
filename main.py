@@ -121,7 +121,7 @@ discord_cache = {
 ### LOGGING
 ###
 
-pclogging = False
+pclogging = True
 log_filename = datetime.now().strftime('%Y-%m-%d_%H-%M-%S.log')
 if not pclogging:
     log_filepath = os.path.join("/opt/swat-server-list/", log_filename)
@@ -169,6 +169,9 @@ def get_rank_from_roles(roles):
             return rank
     return None
 
+def fix_encoding_latin1_to_utf8(text: str) -> str:
+    return text.encode('latin-1', errors='replace').decode('utf-8', errors='replace')
+
 @client.event
 async def on_ready():
     log("info", f"Bot ist online als {client.user}")
@@ -200,8 +203,9 @@ async def fetch_players(region):
             async with aiohttp.ClientSession() as session:
                 async with session.get(api_url) as response:
                     response.raise_for_status()
-                    response.encoding = 'utf-8'
-                    data = json.loads(await response.text())
+                    # response.encoding = 'utf-8'
+                    response.encoding = 'latin-1'
+                    data = json.loads(fix_encoding_latin1_to_utf8(await response.text()))
                     return data
         except aiohttp.ClientError as e:
             log("error", f" > Fehler beim Abrufen der API-Daten von {api_url}: {e}")
@@ -231,25 +235,17 @@ async def getqueuedata():
 ##
 ## get FiveM server data
 ##
-def convert_time(input_str):
-    weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
-    try:
-        day_str, time_str = input_str.split()
-        current_day_index = weekdays.index(day_str)
-        current_hour, current_minute = map(int, time_str.split(':'))
-        total_week_minutes = 7 * 24 * 60
-        current_time_minutes = current_day_index * 24 * 60 + current_hour * 60 + current_minute
-        target_day_index = weekdays.index('Saturday')
-        target_time_minutes = target_day_index * 24 * 60 + 23 * 60 + 59
-        remaining_minutes = target_time_minutes - current_time_minutes
-        if remaining_minutes < 0:
-            remaining_minutes += total_week_minutes
-        irl_minutes_remaining = int(remaining_minutes / 60)
-        return irl_minutes_remaining
-    
-    except Exception as e:
-        log("error", "Fehler beim Umrechnen der Zeit: " + str(e))
-        return 0
+def time_convert(t):
+    m=re.match(r'^(.+) (\d{2}):(\d{2})$',t)
+    if not m:raise ValueError("Invalid timeString")
+    d,h,mi=m.groups();h,mi=int(h),int(mi)
+    days=['Saturday','Friday','Thursday','Wednesday','Tuesday','Monday','Sunday']
+    m = int((days.index(d)*24*60 + (24-h-1)*60 + (60-mi))/60)
+    if not m:return"*Restarting now*"
+    h,r=divmod(m,60)
+    hs=f"{h} hour{'s'*(h!=1)}" if h else ""
+    rs=f"{r} minute{'s'*(r!=1)}" if r else ""
+    return f"*Next restart in ~{hs+' and '+rs if hs and rs else hs or rs}*"
 
 async def get_fivem_data():
     async with aiohttp.ClientSession() as session:
@@ -359,25 +355,8 @@ async def create_embed(region, matching_players, queue_data, fivem_data):
         trainee_embed = ""
         
         try:
-            if fivem_data[region] == None:
-                restart_timer = "*No restart data available!*"
-            else:
-                    hours = convert_time(fivem_data[region]["vars"]["Time"]) // 60
-                    remaining_minutes = convert_time(fivem_data[region]["vars"]["Time"]) % 60
-
-                    if hours == 1 and not remaining_minutes == 0:
-                        restart_timer = f"*Next restart in ~{hours} hour and {remaining_minutes} minutes*"
-                    elif hours == 1 and remaining_minutes == 0:
-                        restart_timer = f"*Next restart in ~{hours} hour"
-                    elif hours == 0 and remaining_minutes == 0:
-                        restart_timer = f"*Server is restarting right now!*"
-                    elif hours > 1 and not remaining_minutes == 0:
-                        restart_timer = f"*Next restart in ~{hours} hours and {remaining_minutes} minutes*"
-                    elif hours > 1 and remaining_minutes == 0:
-                        restart_timer = f"*Next restart in ~{hours} hours"
-                    else:
-                        restart_timer = f"*Next restart in ~{remaining_minutes} minutes*"
-                    log("info", "Time in region *" + str(region) + "* is " + str(fivem_data[region]["vars"]["Time"]))
+            restart_timer = time_convert(fivem_data[region]["vars"]["Time"])
+            log("info", "Time in region *" + str(region) + "* is " + str(fivem_data[region]["vars"]["Time"]))
         except:
             log("warning", "Keine Neustart-Daten für " + str(region))
             restart_timer = "*No restart data available!*"
