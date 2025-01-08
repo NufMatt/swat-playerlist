@@ -29,6 +29,7 @@ import re
 import pytz
 import logging
 import os
+import sys
 
 # Bot-Setup
 intents = discord.Intents.default()
@@ -141,6 +142,9 @@ def log(type, content):
     elif type == "error":
         logging.error(content)
         send_telegram(f"ERROR: [{datetime.now().strftime('%d.%m.%Y %H:%M:%S')}] {content}")
+    elif type == "critical":
+        logging.critical(content)
+        send_telegram(f"CRITICAL: [{datetime.now().strftime('%d.%m.%Y %H:%M:%S')}] {content}")
     else:
         logging.info(content)
 
@@ -168,6 +172,7 @@ async def on_ready():
 @client.event
 async def on_error(event, *args, **kwargs):
     log("error", f'Fehler im Event {event}: {args} {kwargs}')
+    sys.exit(1)
 
 async def fetch_players(region):
     if USE_LOCAL_JSON:
@@ -589,5 +594,8 @@ else:
 with open(file_name, "r") as file:
     TOKEN = file.read().strip()
 
-while True:
+try:
     client.run(TOKEN)
+except Exception as e:
+    log("critical", f"Bot Fehler: {e}")
+    sys.exit(1)
