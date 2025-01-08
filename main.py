@@ -121,7 +121,7 @@ discord_cache = {
 ### LOGGING
 ###
 
-pclogging = True
+pclogging = False
 log_filename = datetime.now().strftime('%Y-%m-%d_%H-%M-%S.log')
 if not pclogging:
     log_filepath = os.path.join("/opt/swat-server-list/", log_filename)
