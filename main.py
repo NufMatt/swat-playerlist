@@ -171,7 +171,7 @@ async def on_ready():
 
 @client.event
 async def on_error(event, *args, **kwargs):
-    log("error", f'Fehler im Event {event}: {args} {kwargs}')
+    log("critical", f'Fehler im Event {event}: {args} {kwargs}')
     sys.exit(1)
 
 async def fetch_players(region):
