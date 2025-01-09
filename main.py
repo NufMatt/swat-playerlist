@@ -289,19 +289,91 @@ async def update_game_status():
                 stored_embeds = json.load(f)
             for em in stored_embeds:
                 if em["region"] == region:
-                    msg = await client.get_channel(em["channel_id"]).fetch_message(em["message_id"])
-                    await msg.edit(embed=embed_pre)
+                    MAX_RETRIES = 3
+                    for attempt in range(1, MAX_RETRIES+1):
+                        try:
+                            # e.g.:
+                            msg = await client.get_channel(em["channel_id"]).fetch_message(em["message_id"])
+                            await msg.edit(embed=embed_pre)
+                            break
+                        except discord.HTTPException as e:
+                            if e.status == 503:
+                                log("warning", f"Discord 503 on attempt {attempt}, region={region}: {e}")
+                                if attempt == MAX_RETRIES:
+                                    log("critical", f"Reached max retries for region={region}, message edit failed!")
+                                    send_telegram(f"CRITICAL: Discord 503 - message edit failed for region={region}")
+                                else:
+                                    await asyncio.sleep(5)  # wait 5 seconds before retry
+                            else:
+                                # Handle other HTTP errors (401, 403, etc.),
+                                # or re-raise if you prefer:
+                                log("error", f"Discord HTTPException: {e}")
+                                send_telegram(f"ERROR: Discord message edit failed: {e}")
+                                break
+                        except Exception as ex:
+                            # Catch unexpected issues
+                            log("error", f"Unexpected error in msg.edit: {ex}")
+                            break
                     break
             else:
-                msg_send = await channel.send(embed=embed_pre)
-                stored_embeds.append({"region": region, "channel_id": msg_send.channel.id, "message_id": msg_send.id})
+                MAX_RETRIES = 3
+                for attempt in range(1, MAX_RETRIES+1):
+                    try:
+                        # e.g.:
+                        msg_send = await channel.send(embed=embed_pre)
+                        stored_embeds.append({"region": region, "channel_id": msg_send.channel.id, "message_id": msg_send.id})
+                        break
+                    except discord.HTTPException as e:
+                        if e.status == 503:
+                            log("warning", f"Discord 503 on attempt {attempt}, region={region}: {e}")
+                            if attempt == MAX_RETRIES:
+                                log("critical", f"Reached max retries for region={region}, message sending failed!")
+                                send_telegram(f"CRITICAL: Discord 503 - message sending failed for region={region}")
+                            else:
+                                await asyncio.sleep(5)  # wait 5 seconds before retry
+                        else:
+                            # Handle other HTTP errors (401, 403, etc.),
+                            # or re-raise if you prefer:
+                            log("error", f"Discord HTTPException: {e}")
+                            send_telegram(f"ERROR: Discord message sending failed: {e}")
+                            break
+                    except Exception as ex:
+                        # Catch unexpected issues
+                        log("error", f"Unexpected error in msg.send: {ex}")
+                        break
+                break
+
             with open(embed_file_name, "w") as f:
                 json.dump(stored_embeds, f)
         else:
-            msg_send = await channel.send(embed=embed_pre)
-            new_data = [{"region": region, "channel_id": msg_send.channel.id, "message_id": msg_send.id}]
-            with open(embed_file_name, "w") as f:
-                json.dump(new_data, f)
+            MAX_RETRIES = 3
+            for attempt in range(1, MAX_RETRIES+1):
+                try:
+                    # e.g.:
+                    msg_send = await channel.send(embed=embed_pre)
+                    new_data = [{"region": region, "channel_id": msg_send.channel.id, "message_id": msg_send.id}]
+                    with open(embed_file_name, "w") as f:
+                        json.dump(new_data, f)
+                    break
+                except discord.HTTPException as e:
+                    if e.status == 503:
+                        log("warning", f"Discord 503 on attempt {attempt}, region={region}: {e}")
+                        if attempt == MAX_RETRIES:
+                            log("critical", f"Reached max retries for region={region}, message sending failed!")
+                            send_telegram(f"CRITICAL: Discord 503 - message sending failed for region={region}")
+                        else:
+                            await asyncio.sleep(5)  # wait 5 seconds before retry
+                    else:
+                        # Handle other HTTP errors (401, 403, etc.),
+                        # or re-raise if you prefer:
+                        log("error", f"Discord HTTPException: {e}")
+                        send_telegram(f"ERROR: Discord message sending failed: {e}")
+                        break
+                except Exception as ex:
+                    # Catch unexpected issues
+                    log("error", f"Unexpected error in msg.send: {ex}")
+                    break
+            break
 
 # --- Bot Token Loader ---
 file_name = TOKEN_FILE
