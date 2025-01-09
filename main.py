@@ -124,6 +124,7 @@ async def update_discord_cache():
         return
     dc_members = {m.display_name: {"id": m.id, "roles": [r.id for r in m.roles]} for m in guild.members}
     discord_cache.update({"timestamp": now, "members": dc_members})
+    print(discord_cache)
     log("info", "Discord-Cache wurde aktualisiert!")
 
 def time_convert(time_string):
@@ -251,32 +252,60 @@ async def update_game_status():
         if players:
             for pl in players:
                 username = pl["Username"]["Username"]
-                if any(mp["username"] == username for mp in matching_players): 
-                    continue  # skip duplicates
-                # Check for [SWAT]
+                if any(mp["username"] == username for mp in matching_players):
+                    continue  # Skip duplicates in matching_players
+
+                # Check for [SWAT] tag in the player's name
                 if username.startswith("[SWAT] "):
                     cleaned_name = re.sub(r'^\[SWAT\]\s*', '', username, flags=re.IGNORECASE)
                     discord_found = False
-                    for dn, dt in discord_cache["members"].items():
-                        compare_dn = re.sub(r'^\[SWAT\]\s*', '', dn, flags=re.IGNORECASE)
+                    for discord_name, details in discord_cache["members"].items():
+                        compare_dn = re.sub(r'^\[SWAT\]\s*', '', discord_name, flags=re.IGNORECASE)
                         if cleaned_name.lower() == compare_dn.lower():
                             discord_found = True
-                            mtype = "mentor" if MENTOR_ROLE_ID in dt["roles"] else "SWAT"
-                            matching_players.append({"username": username, "type": mtype, "discord_id": dt["id"], "rank": get_rank_from_roles(dt["roles"])})
+                            mtype = "mentor" if MENTOR_ROLE_ID in details["roles"] else "SWAT"
+                            matching_players.append({
+                                "username": username,
+                                "type": mtype,
+                                "discord_id": details["id"],
+                                "rank": get_rank_from_roles(details["roles"])
+                            })
                             break
                     if not discord_found:
-                        matching_players.append({"username": username, "type": "SWAT", "discord_id": None, "rank": None})
+                        matching_players.append({
+                            "username": username,
+                            "type": "SWAT",
+                            "discord_id": None,
+                            "rank": None
+                        })
+
+                # Otherwise, see if they match a Cadet/Trainee/SWAT user on Discord
                 else:
-                    # Check for cadet / trainee / swat from roles if name matches
-                    for dn, dt in discord_cache["members"].items():
-                        tmp_dn = re.sub(r'\s*\[(CADET|TRAINEE|SWAT)\]$', '', dn, flags=re.IGNORECASE)
+                    for discord_name, details in discord_cache["members"].items():
+                        # Strip out any trailing "[CADET]", "[TRAINEE]" or "[SWAT]" from Discord nicknames
+                        tmp_dn = re.sub(r'\s*\[(CADET|TRAINEE|SWAT)\]$', '', discord_name, flags=re.IGNORECASE)
                         if username.lower() == tmp_dn.lower():
-                            if CADET_ROLE_ID in dt["roles"]:
-                                matching_players.append({"username": username, "type": "cadet", "discord_id": dt["id"], "rank": get_rank_from_roles(dt["roles"])})
-                            elif TRAINEE_ROLE_ID in dt["roles"]:
-                                matching_players.append({"username": username, "type": "trainee", "discord_id": dt["id"], "rank": get_rank_from_roles(dt["roles"])})
-                            elif SWAT_ROLE_ID in dt["roles"]:
-                                matching_players.append({"username": username, "type": "SWAT", "discord_id": dt["id"], "rank": get_rank_from_roles(dt["roles"])})
+                            if CADET_ROLE_ID in details["roles"]:
+                                matching_players.append({
+                                    "username": username,
+                                    "type": "cadet",
+                                    "discord_id": details["id"],
+                                    "rank": get_rank_from_roles(details["roles"])
+                                })
+                            elif TRAINEE_ROLE_ID in details["roles"]:
+                                matching_players.append({
+                                    "username": username,
+                                    "type": "trainee",
+                                    "discord_id": details["id"],
+                                    "rank": get_rank_from_roles(details["roles"])
+                                })
+                            elif SWAT_ROLE_ID in details["roles"]:
+                                matching_players.append({
+                                    "username": username,
+                                    "type": "SWAT",
+                                    "discord_id": details["id"],
+                                    "rank": get_rank_from_roles(details["roles"])
+                                })
                             break
         if matching_players is not None:
             matching_players.sort(key=lambda x: RANK_HIERARCHY.index(x["rank"]) if x["rank"] in RANK_HIERARCHY else len(RANK_HIERARCHY))
