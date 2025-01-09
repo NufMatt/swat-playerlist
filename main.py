@@ -124,7 +124,6 @@ async def update_discord_cache():
         return
     dc_members = {m.display_name: {"id": m.id, "roles": [r.id for r in m.roles]} for m in guild.members}
     discord_cache.update({"timestamp": now, "members": dc_members})
-    print(discord_cache)
     log("info", "Discord-Cache wurde aktualisiert!")
 
 def time_convert(time_string):
