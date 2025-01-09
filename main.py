@@ -1,173 +1,54 @@
-### NOTES
-# https://servers-frontend.fivem.net/api/servers/single/{server-shortcut}
-#
-# NA 1: a6aope
-# NA 2: zlvypp
-# NA 3: qmv4z4
-# EU 1: kx98er
-# EU 2: abo683
-# SEA : apyap9
-#
-# SWAT Ranking:
-# Officer: 958272804011245618
-# Corporal: 966118860128411681
-# Seargent: 958272773904543775
-# Lieutenant: 958272744800260126
-# Commander: 958272697291407360
-# Deputy Chief: 958272662080225290
-# Chief: 958272560905195521
-
 import discord
 from discord.ext import tasks, commands
-import requests
-requests.packages.urllib3.disable_warnings()
-import asyncio
-import json
-import datetime
+import requests, json, datetime, re, pytz, logging, os, sys, aiohttp, asyncio
 from datetime import datetime, timedelta
-import re
-import pytz
-import logging
-import os
-import sys
-import aiohttp
+from config import (
+    USE_LOCAL_JSON, LOCAL_JSON_FILE, CHECK_INTERVAL, CACHE_UPDATE_INTERVAL,
+    PClOGGING, LOG_FILENAME, CHAT_ID, API_URLS, API_URLS_FIVEM, STATUS_CHANNEL_ID, 
+    GUILD_ID, MENTOR_ROLE_ID, CADET_ROLE_ID, TRAINEE_ROLE_ID, SWAT_ROLE_ID,
+    RANK_HIERARCHY, ROLE_TO_RANK, EMBEDS_FILE, TOKEN_FILE
+)
 
-# Bot-Setup
+requests.packages.urllib3.disable_warnings()
+
+# Bot setup
 intents = discord.Intents.default()
 intents.members = True
 client = commands.Bot(command_prefix="!", intents=intents)
 
-TESTING = False
-
-# Konfiguration
-USE_LOCAL_JSON = False  # Umschalten zwischen API und lokaler JSON-Datei
-LOCAL_JSON_FILE = "json-formatting.json"  # Lokale JSON-Datei für Testzwecke
-CHECK_INTERVAL = 60
-CACHE_UPDATE_INTERVAL = 300 # Discord Chache
-
-API_URLS = {
-    "EU1": "https://api.gtacnr.net/cnr/players?serverId=EU1",
-    "EU2": "https://api.gtacnr.net/cnr/players?serverId=EU2",
-    "NA1": "https://api.gtacnr.net/cnr/players?serverId=US1",
-    "NA2": "https://api.gtacnr.net/cnr/players?serverId=US2",
-    "SEA": "https://api.gtacnr.net/cnr/players?serverId=SEA",
-}
-
-API_URLS_FIVEM = {
-    "EU1": "https://57.129.49.31:30130/info.json",
-    "EU2": "https://57.129.49.31:30131/info.json",
-    "NA1": "https://15.204.215.61:30130/info.json",
-    "NA2": "https://15.204.215.61:30131/info.json",
-    "SEA": "https://51.79.231.52:30130/info.json",
-}
-
-retries = max_retries=2
-chat_id = "188622786"
-
-if not TESTING:
-    # SWAT CHANNEL AND ROLES
-    STATUS_CHANNEL_ID = 1322097975324971068
-    GUILD_ID = 958271853158350850
-    MENTOR_ROLE_ID = 1303048285040410644
-    CADET_ROLE_ID = 962226985222959145
-    TRAINEE_ROLE_ID = 1033432392758722682
-    SWAT_ROLE_ID = 958274314036195359
+# Logging setup
+if PClOGGING:
+    log_filepath = LOG_FILENAME
 else:
-    # TESTING CHANNEL AND ROLES
-    STATUS_CHANNEL_ID = 1320463232128913551
-    GUILD_ID = 1300519755622383689
-    MENTOR_ROLE_ID = 1303048285040410644
-    CADET_ROLE_ID = 962226985222959145
-    TRAINEE_ROLE_ID = 1033432392758722682
-
-# Define the rank hierarchy for sorting
-RANK_HIERARCHY = [
-    "Mentor",
-    "Chief",
-    "Deputy Chief",
-    "Commander",
-    "Captain",
-    "Lieutenant",
-    "Seargent",
-    "Corporal",
-    "Officer",
-    "Cadet",
-    "Trainee",
-    None
-]
-
-# Define the role-to-rank mapping
-ROLE_TO_RANK = {
-    1303048285040410644: "Mentor",
-    958272560905195521: "Chief",
-    958272662080225290: "Deputy Chief",
-    958272697291407360: "Commander",
-    958272723975553085: "Captain",
-    958272744800260126: "Lieutenant",
-    958272773904543775: "Seargent",
-    966118860128411681: "Corporal",
-    958272804011245618: "Officer",
-    962226985222959145: "Cadet",
-    1033432392758722682: "Trainee"
-}
-### Setting variables
-embeds = []
-discord_cache = {
-    "timestamp": None,
-    "members": {},
-}
-
-###
-### LOGGING
-###
-
-pclogging = False
-log_filename = datetime.now().strftime('%Y-%m-%d_%H-%M-%S.log')
-if not pclogging:
-    log_filepath = os.path.join("/opt/swat-server-list/", log_filename)
-else:
-    log_filepath = log_filename
-
+    log_filepath = os.path.join("/opt/swat-server-list/", LOG_FILENAME)
 logging.basicConfig(
-    filename=log_filepath,  # Der Log-Dateiname ist jetzt dynamisch
-    level=logging.INFO,  # Alle Log-Ereignisse von INFO und höher werden geloggt
-    format='%(asctime)s - %(levelname)s - %(message)s',  # Format der Log-Nachrichten
+    filename=log_filepath,
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
 )
+
+# Global variables
+embeds = []
+discord_cache = {"timestamp": None, "members": {}}
 
 def send_telegram(message_temp):
     with open("tgtoken.txt", "r") as file:
         TGTOKEN = file.read().strip()
-    url = f"https://api.telegram.org/bot{TGTOKEN}/sendMessage?chat_id={chat_id}&text={message_temp}"
+    url = f"https://api.telegram.org/bot{TGTOKEN}/sendMessage?chat_id={CHAT_ID}&text={message_temp}"
     requests.get(url).json()
 
-def log(type, content):
-    print(f"[{datetime.now().strftime('%d.%m.%Y %H:%M:%S')}] {content}")
-    if type == "warning":
-        logging.warning(content)
-    elif type == "error":
+def log(log_type, content):
+    ts = datetime.now().strftime('%d.%m.%Y %H:%M:%S')
+    print(f"[{ts}] {content}")
+    if log_type == "warning": logging.warning(content)
+    elif log_type == "error":
         logging.error(content)
-        send_telegram(f"ERROR: [{datetime.now().strftime('%d.%m.%Y %H:%M:%S')}] {content}")
-    elif type == "critical":
+        send_telegram(f"ERROR: [{ts}] {content}")
+    elif log_type == "critical":
         logging.critical(content)
-        send_telegram(f"CRITICAL: [{datetime.now().strftime('%d.%m.%Y %H:%M:%S')}] {content}")
+        send_telegram(f"CRITICAL: [{ts}] {content}")
     else:
         logging.info(content)
-
-def print_variable(variable, name):
-    if TESTING:
-        print("\n")
-        log("info", "---------- PRINTING VARIABLE " + str(name))
-        print("\n")
-        print(variable)
-        print("\n")
-        log("info", "---------- END PRINTING VARIABLE")
-        print("\n")
-
-def get_rank_from_roles(roles):
-    for role_id, rank in ROLE_TO_RANK.items():
-        if role_id in roles:
-            return rank
-    return None
 
 def fix_encoding_latin1_to_utf8(text: str) -> str:
     return text.encode('latin-1', errors='replace').decode('utf-8', errors='replace')
@@ -186,392 +67,244 @@ async def fetch_players(region):
     if USE_LOCAL_JSON:
         try:
             with open(LOCAL_JSON_FILE, "r", encoding='utf-8') as file:
-                data = json.load(file)
+                return json.load(file)
+        except (FileNotFoundError, json.JSONDecodeError) as e:
+            log("error", f"Fehler beim Lesen der JSON-Datei: {e}")
+            return []
+    url = API_URLS.get(region)
+    if not url:
+        log("error", f"Keine API-URL für Region {region} definiert.")
+        return []
+    try:
+        async with aiohttp.ClientSession() as session:
+            await asyncio.sleep(1)
+            async with session.get(url) as resp:
+                resp.raise_for_status()
+                resp.encoding = 'latin-1'
+                data = json.loads(fix_encoding_latin1_to_utf8(await resp.text()))
                 return data
-        except FileNotFoundError:
-            log("error", f" > Lokale JSON-Datei {LOCAL_JSON_FILE} nicht gefunden.")
-            return []
-        except json.JSONDecodeError as e:
-            log("error", f" > Fehler beim Lesen der JSON-Datei: {e}")
-            return []
-    else:
-        api_url = API_URLS.get(region)
-        if not api_url:
-            log("error", f" > Keine API-URL für Region {region} definiert.")
-            return []
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(api_url) as response:
-                    response.raise_for_status()
-                    # response.encoding = 'utf-8'
-                    response.encoding = 'latin-1'
-                    data = json.loads(fix_encoding_latin1_to_utf8(await response.text()))
-                    return data
-        except aiohttp.ClientError as e:
-            log("error", f" > Fehler beim Abrufen der API-Daten von {api_url}: {e}")
-            return None
-        await asyncio.sleep(0)
-
-def clean_discord_name(name):
-    return name.split(" [SWAT]")[0]
+    except aiohttp.ClientError as e:
+        log("error", f"Fehler beim Abrufen der API-Daten: {e}")
+        return None
 
 async def getqueuedata():
     try:
-        response = requests.get("https://api.gtacnr.net/cnr/servers")
-        response.raise_for_status()
-        response.encoding = 'utf-8'
-        data = json.loads(response.text)
-        print_variable(data, "queuedata -> fetch")
-
+        r = requests.get("https://api.gtacnr.net/cnr/servers")
+        r.raise_for_status()
+        data = json.loads(r.text)
         queue_info = {entry["Id"]: entry for entry in data}
-        queue_info["NA1"] = queue_info.pop("US1")
-        queue_info["NA2"] = queue_info.pop("US2")
-        print_variable(queue_info, "queuedata -> fetch")
+        if "US1" in queue_info: queue_info["NA1"] = queue_info.pop("US1")
+        if "US2" in queue_info: queue_info["NA2"] = queue_info.pop("US2")
         return queue_info
     except requests.RequestException as e:
         log("error", f"Fehler beim Abrufen der Queue-Daten: {e}")
         return None
 
-##
-## get FiveM server data
-##
-def time_convert(t):
-    m=re.match(r'^(.+) (\d{2}):(\d{2})$',t)
-    if not m:raise ValueError("Invalid timeString")
-    d,h,mi=m.groups();h,mi=int(h),int(mi)
-    days=['Saturday','Friday','Thursday','Wednesday','Tuesday','Monday','Sunday']
-    m = int((days.index(d)*24*60 + (24-h-1)*60 + (60-mi))/60)
-    if not m:return"*Restarting now*"
-    h,r=divmod(m,60)
-    hs=f"{h} hour{'s'*(h!=1)}" if h else ""
-    rs=f"{r} minute{'s'*(r!=1)}" if r else ""
-    return f"*Next restart in ~{hs+' and '+rs if hs and rs else hs or rs}*"
-
 async def get_fivem_data():
+    fivem_data = {}
     async with aiohttp.ClientSession() as session:
-        now = datetime.now()
-        log("info", "FiveM Daten werden abgerufen")
-        fivem_data = {}
         for region, url in API_URLS_FIVEM.items():
             try:
                 async with session.get(url, ssl=False, timeout=aiohttp.ClientTimeout(total=3)) as response:
-                        response.raise_for_status()
-                        data = json.loads(await response.text())
-                        fivem_data[region] = data
-                        print_variable(data, "New fetched playerdata from region: " + str(region))
+                    response.raise_for_status()
+                    fivem_data[region] = json.loads(await response.text())
             except Exception as e:
-                log("warning", f"Fehler beim Abrufen der Fivem Daten in {region}: {e}")
+                log("warning", f"Fehler beim Abrufen der Fivem Daten {region}: {e}")
                 fivem_data[region] = None
     return fivem_data
 
-##
-## Discord Cache
-##
-
 async def update_discord_cache():
-    global discord_cache
     now = datetime.now()
     if discord_cache["timestamp"] and now - discord_cache["timestamp"] < timedelta(seconds=CACHE_UPDATE_INTERVAL):
         log("info", "Discord-Cache ist aktuell. Kein Update erforderlich.")
         return
-
-    discord_cache["members"] = {}
     guild = client.get_guild(GUILD_ID)
-
     if not guild:
         log("error", f"Bot ist in keinem Server mit der ID {GUILD_ID}.")
         return
-
-    for member in guild.members:
-        roles = [role.id for role in member.roles]
-        discord_cache["members"][member.display_name] = {
-            "id": member.id,
-            "roles": roles,
-        }
-    discord_cache["timestamp"] = now
+    dc_members = {m.display_name: {"id": m.id, "roles": [r.id for r in m.roles]} for m in guild.members}
+    discord_cache.update({"timestamp": now, "members": dc_members})
     log("info", "Discord-Cache wurde aktualisiert!")
 
-##
-## EMBED ERSTELLEN
-##
+def time_convert(time_string):
+    # Next Restart Time converter for FiveM
+    m = re.match(r'^(.+) (\d{2}):(\d{2})$', time_string)
+    if not m: return "*Restarting now*"
+    d, hh, mm = m.groups()
+    hh, mm = int(hh), int(mm)
+    days = ['Saturday','Friday','Thursday','Wednesday','Tuesday','Monday','Sunday']
+    total_hours = (days.index(d)*24*60 + (24-hh-1)*60 + (60-mm))//60
+    if not total_hours: return "*Restarting now*"
+    h, r = divmod(total_hours, 60)
+    hs = f"{h} hour{'s'*(h!=1)}" if h else ""
+    rs = f"{r} minute{'s'*(r!=1)}" if r else ""
+    return f"*Next restart in ~{hs+' and '+rs if hs and rs else hs or rs}*"
+
+def get_rank_from_roles(roles):
+    for r_id, rank in ROLE_TO_RANK.items():
+        if r_id in roles: return rank
+    return None
 
 async def create_embed(region, matching_players, queue_data, fivem_data):
-    if region == "EU1" or region == "EU2":
-        title="\U0001F1EA\U0001F1FA " + str(region)
-    elif region == "NA1" or region == "NA2":
-        title="\U0001F1FA\U0001F1F8 " + str(region)
-    elif region == "SEA":
-        title="\U0001F1F8\U0001F1EC " + str(region)
-    else:
-        title = ""
+    offline = False
+    embed_color = 0x28ef05  # default green
 
-    try:
-        time = datetime.fromisoformat(queue_data[region]["LastHeartbeatDateTime"].replace("Z", "+00:00"))
-        if (datetime.now(pytz.UTC) - time > timedelta(minutes=10)):
-            log("info", "Server " + str(region) + " scheint offline zu sein: Letzer Heartbeat länger als 10 Minuten")
-            matching_players = None
-            queue_data = None
-            offline = True
-            last_heartbeat = time
-        else:
-            log("info", "Server " + str(region) + " ist online")
-            offline = False
-    except:
-        log("warning", "Keine Neustart-Daten für " + str(region))
-        restart_timer = "*No time data available!*"
-    emoji_swat_logo = client.get_emoji(1196404423874854992)  # Emoji-ID hier einfügen
-    if not emoji_swat_logo:
-        emoji_swat_logo = "⚫"
+    if queue_data and region in queue_data:
+        try:
+            last_heartbeat = datetime.fromisoformat(
+                queue_data[region]["LastHeartbeatDateTime"].replace("Z", "+00:00")
+            )
+            if datetime.now(pytz.UTC) - last_heartbeat > timedelta(minutes=10):
+                offline = True
+                embed_color = 0xf40006  # red
+        except:
+            pass
     else:
-        emoji_swat_logo = str(emoji_swat_logo)
-    
-    emoji_swat_mentor = client.get_emoji(1305249069463113818)  # Emoji-ID hier einfügen
-    if not emoji_swat_mentor:
-        emoji_swat_mentor = "⚫"
-    else:
-        emoji_swat_mentor = str(emoji_swat_mentor)
+        offline = True
+        embed_color = 0xf40006  # red
 
-    emoji_swat_cadet = client.get_emoji(1305496985582698607)  # Emoji-ID hier einfügen
-    if not emoji_swat_cadet:
-        emoji_swat_cadet = "⚫"
-    else:
-        emoji_swat_cadet = str(emoji_swat_cadet)
-        
-    emoji_swat_trainee = client.get_emoji(1305496951642390579)  # Emoji-ID hier einfügen
-    if not emoji_swat_trainee:
-        emoji_swat_trainee = "⚫"
-    else:
-        emoji_swat_trainee = str(emoji_swat_trainee)
+    flags = {"EU": "🇪🇺 ", "NA": "🇺🇸 ", "SEA": "🇸🇬 "}
+    region_name = region[:-1] if region[-1].isdigit() else region
+    title = f"{flags.get(region_name, '')}{region}"
+    # Emojis from server (if not found, default to circle)
+    def safe_emoji(eid, default="⚫"):
+        e = client.get_emoji(eid)
+        return str(e if e else default)
 
-    if not (matching_players == None):
-        embed = discord.Embed(title=title, description="", colour=0x28ef05)
+    embed = discord.Embed(title=title, colour=embed_color)
+    offline = False
+
+    # Check if server offline / no data
+    if matching_players is not None and offline is not True:
+        swat_count = sum(p["type"] in ("unknown", "SWAT", "mentor") for p in matching_players)
+        mentor_count = sum(p["type"] == "mentor" for p in matching_players)
+        trainee_count = sum(p["type"] in ("trainee", "cadet") for p in matching_players)
         
-        swat_count = sum(1 for entry in matching_players if entry['type'] == 'unknown' or entry['type'] == 'SWAT' or entry['type'] == 'mentor')
-        swat_count_no_mentor = sum(1 for entry in matching_players if entry['type'] == 'unknown' or entry['type'] == 'SWAT')
-        mentor_count = sum(1 for entry in matching_players if entry['type'] == 'mentor')
-        trainee_count = sum(1 for entry in matching_players if entry['type'] == 'trainee' or entry['type'] == 'cadet')
-        mentor_embed = ""
-        swat_embed = ""
-        trainee_embed = ""
-        
+        # Try to read FiveM "Time" for next restart
         try:
             restart_timer = time_convert(fivem_data[region]["vars"]["Time"])
-            log("info", "Time in region *" + str(region) + "* is " + str(fivem_data[region]["vars"]["Time"]))
         except:
-            log("warning", "Keine Neustart-Daten für " + str(region))
             restart_timer = "*No restart data available!*"
 
-        if mentor_count > 0:
-            for i in matching_players:
-                if i["type"] == "mentor" and i["discord_id"] != None:
-                    mentor_embed = mentor_embed + "\n - " + i["username"] + " (<@" + str(i['discord_id']) + ">)"
-                elif i["type"] == "mentor":
-                    mentor_embed = mentor_embed + "\n - " + i["username"] + " (❔)"
-            embed.add_field(name=emoji_swat_mentor + "Mentors Online:", value=mentor_embed, inline=False)
+        # Mentor
+        if mentor_count:
+            val = ""
+            for mp in matching_players:
+                if mp["type"] == "mentor":
+                    val += f"\n - {mp['username']} (<@{mp['discord_id']}>)" if mp['discord_id'] else f"\n - {mp['username']} (❔)"
+            embed.add_field(name=f"{safe_emoji(1305249069463113818)}Mentors Online:", value=val, inline=False)
 
-        if swat_count_no_mentor > 0:
-            for i in matching_players:
-                if i["type"] == "SWAT" and i["discord_id"] != None:
-                    swat_embed = swat_embed + "\n - " + i["username"] + " (<@" + str(i['discord_id']) + ">)"
-                elif i["type"] == "SWAT" or i["type"] == "unknown":
-                    swat_embed = swat_embed + "\n - " + i["username"] + " (❔)"
-            embed.add_field(name="SWAT Online:", value=swat_embed, inline=False)
+        # SWAT
+        if swat_count - mentor_count > 0:
+            val = ""
+            for mp in matching_players:
+                if mp["type"] in ("SWAT", "unknown"):
+                    val += f"\n - {mp['username']} (<@{mp['discord_id']}>)" if mp['discord_id'] else f"\n - {mp['username']} (❔)"
+            embed.add_field(name="SWAT Online:", value=val, inline=False)
 
-        if trainee_count > 0:
-            for i in matching_players:
-                if i["type"] == "trainee" and i["discord_id"] != None:
-                    trainee_embed = trainee_embed + "\n" + emoji_swat_trainee + " " + i["username"] + " (<@" + str(i['discord_id']) + ">)"
-                elif i["type"] == "cadet" and i["discord_id"] != None:
-                    trainee_embed = trainee_embed + "\n" + emoji_swat_cadet + " " + i["username"] + " (<@" + str(i['discord_id']) + ">)"
-            embed.add_field(name="Cadets / Trainees Online:", value=trainee_embed, inline=False)
+        # Trainees / Cadets
+        if trainee_count:
+            val = ""
+            for mp in matching_players:
+                if mp["type"] == "trainee":
+                    val += f"\n{safe_emoji(1305496951642390579)} {mp['username']} (<@{mp['discord_id']}>)"
+                elif mp["type"] == "cadet":
+                    val += f"\n{safe_emoji(1305496985582698607)} {mp['username']} (<@{mp['discord_id']}>)"
+            embed.add_field(name="Cadets / Trainees Online:", value=val, inline=False)
 
-        if trainee_count == 0 and mentor_count == 0 and swat_count == 0:
-            embed.add_field(name="\n*Nobody is online*\n",value="", inline=False)
+        if all(p["type"] not in ("SWAT","mentor","trainee","cadet","unknown") for p in matching_players):
+            embed.add_field(name="\n*Nobody is online*\n", value="", inline=False)
 
-        if not queue_data == None:
-            embed.add_field(name=emoji_swat_logo + "SWAT:", value="``` " + str(swat_count) + "```", inline=True)
-            embed.add_field(name="🎮Players:", value="```" + str(queue_data[region]["Players"]) + "/" + str(queue_data[region]["MaxPlayers"]) + "```", inline=True)
-            embed.add_field(name="⌛Queue:", value="```" + str(queue_data[region]["QueuedPlayers"]) + "```", inline=True)
+        # Stats
+        if queue_data and region in queue_data:
+            p = queue_data[region]
+            embed.add_field(name=f"{safe_emoji(1196404423874854992)}SWAT:", value=f"``` {swat_count} ```", inline=True)
+            embed.add_field(name="🎮Players:", value=f"```{p['Players']}/{p['MaxPlayers']}```", inline=True)
+            embed.add_field(name="⌛Queue:", value=f"```{p['QueuedPlayers']}```", inline=True)
             embed.add_field(name="", value=restart_timer, inline=False)
         else:
-            embed.add_field(name=emoji_swat_logo + "SWAT:", value="``` " + str(swat_count) + "```", inline=True)
+            embed.add_field(name=f"{safe_emoji(1196404423874854992)}SWAT:", value=f"```{swat_count}```", inline=True)
             embed.add_field(name="🎮Players:", value="```no data```", inline=True)
             embed.add_field(name="⌛Queue:", value="```no data```", inline=True)
-        embed.set_footer(text="Refreshes every 60 second")
-        embed.timestamp = datetime.now()
-
     else:
-        embed = discord.Embed(title=title, description="", colour=0xf40006)
-        
         embed.add_field(name="Server or API down?", value="No Data for this server!", inline=False)
+        embed.add_field(name="🎮Players:", value="```no data```", inline=True)
+        embed.add_field(name="⌛Queue:", value="```no data```", inline=True)
 
-        if not (queue_data == None):
-            swat_count = "no data"
-            embed.add_field(name=emoji_swat_logo + "SWAT:", value="``` " + str(swat_count) + "```", inline=True)
-            embed.add_field(name="🎮Players:", value="```" + str(queue_data[region]["Players"]) + "/" + str(queue_data[region]["MaxPlayers"]) + "```", inline=True)
-            embed.add_field(name="⌛Queue:", value="```" + str(queue_data[region]["QueuedPlayers"]) + "```", inline=True)
-        else:
-            if offline:
-                swat_count = "no data"
-            embed.add_field(name=emoji_swat_logo + "SWAT:", value="```" + str(swat_count) + "```", inline=True)
-            embed.add_field(name="🎮Players:", value="```no data```", inline=True)
-            embed.add_field(name="⌛Queue:", value="```no data```", inline=True)
-        embed.set_footer(text="Refreshes every 60 second")
-        embed.timestamp = datetime.now()
+    embed.set_footer(text="Refreshes every 60 second")
+    embed.timestamp = datetime.now()
     return embed
-
-##
-## CHECK PLAYERS
-##
 
 @tasks.loop(seconds=CHECK_INTERVAL)
 async def update_game_status():
     await update_discord_cache()
-    
     queue_data = await getqueuedata()
     fivem_data = await get_fivem_data()
-
-    if TESTING:
-        embeds_file_name = "embeds-testing.json"
-    else:
-        embeds_file_name = "embeds.json"
-    
-    
+    embed_file_name = EMBEDS_FILE
     channel = client.get_channel(STATUS_CHANNEL_ID)
-    if not channel:
-        log("error", f"Status-Kanal mit ID {STATUS_CHANNEL_ID} nicht gefunden.")
-        return
+    if not channel: return log("error", f"Status-Kanal {STATUS_CHANNEL_ID} nicht gefunden.")
 
-    for region in API_URLS.keys():  # für jeden Server
+    for region in API_URLS.keys():
         log("info", f"Verarbeite Region: {region}")
         players = await fetch_players(region)
-
-        if not(players == None):
-            matching_players = []
-            for i in players:  # für jeden Spieler auf dem Server
-                username = i["Username"]["Username"]
-                if any(playercheck["username"] == username for playercheck in matching_players):
-                    continue  # Überspringe, wenn der Nutzername bereits in matching_players ist
-
-                if username.startswith("[SWAT] "):  # Spieler hat SWAT im Namen
-                    cleaned_username = re.sub(r'^\s*\[SWAT\]\s*|\s*\[SWAT\]\s*$', '', username)
+        matching_players = None if players is None else []
+        if players:
+            for pl in players:
+                username = pl["Username"]["Username"]
+                if any(mp["username"] == username for mp in matching_players): 
+                    continue  # skip duplicates
+                # Check for [SWAT]
+                if username.startswith("[SWAT] "):
+                    cleaned_name = re.sub(r'^\[SWAT\]\s*', '', username, flags=re.IGNORECASE)
                     discord_found = False
-
-                    for discord_name, details in discord_cache["members"].items():
-                        discord_name = re.sub(r'^\s*\[SWAT\]\s*|\s*\[SWAT\]\s*$', '', discord_name)
-
-                        if str(cleaned_username.lower()) == str(discord_name.lower()):  # Nutzername auf Discord gefunden
+                    for dn, dt in discord_cache["members"].items():
+                        compare_dn = re.sub(r'^\[SWAT\]\s*', '', dn, flags=re.IGNORECASE)
+                        if cleaned_name.lower() == compare_dn.lower():
                             discord_found = True
-                            user_type = "mentor" if MENTOR_ROLE_ID in details["roles"] else "SWAT"
-                            matching_players.append({
-                                "username": username,
-                                "type": user_type,
-                                "discord_id": details["id"],
-                                "rank": get_rank_from_roles(details["roles"])
-                            })
-                            log("info", f"Spieler ist auf Discord: {username} ({user_type} -> " + str(get_rank_from_roles(details["roles"])) + ")")
-                            break  # Discord-Match gefunden, weitere Prüfung abbrechen
-                    if not discord_found:  # Kein Match auf Discord gefunden
-                        matching_players.append({
-                            "username": username,
-                            "type": "SWAT",
-                            "discord_id": None,
-                            "rank": None
-                        })
-                        log("info", f"Spieler nicht auf Discord: {username}")
+                            mtype = "mentor" if MENTOR_ROLE_ID in dt["roles"] else "SWAT"
+                            matching_players.append({"username": username, "type": mtype, "discord_id": dt["id"], "rank": get_rank_from_roles(dt["roles"])})
+                            break
+                    if not discord_found:
+                        matching_players.append({"username": username, "type": "SWAT", "discord_id": None, "rank": None})
+                else:
+                    # Check for cadet / trainee / swat from roles if name matches
+                    for dn, dt in discord_cache["members"].items():
+                        tmp_dn = re.sub(r'\s*\[(CADET|TRAINEE|SWAT)\]$', '', dn, flags=re.IGNORECASE)
+                        if username.lower() == tmp_dn.lower():
+                            if CADET_ROLE_ID in dt["roles"]:
+                                matching_players.append({"username": username, "type": "cadet", "discord_id": dt["id"], "rank": get_rank_from_roles(dt["roles"])})
+                            elif TRAINEE_ROLE_ID in dt["roles"]:
+                                matching_players.append({"username": username, "type": "trainee", "discord_id": dt["id"], "rank": get_rank_from_roles(dt["roles"])})
+                            elif SWAT_ROLE_ID in dt["roles"]:
+                                matching_players.append({"username": username, "type": "SWAT", "discord_id": dt["id"], "rank": get_rank_from_roles(dt["roles"])})
+                            break
+        if matching_players is not None:
+            matching_players.sort(key=lambda x: RANK_HIERARCHY.index(x["rank"]) if x["rank"] in RANK_HIERARCHY else len(RANK_HIERARCHY))
 
-                else:  # Spieler ohne SWAT-Tag
-                    for discord_name, details in discord_cache["members"].items():
-                        if discord_name.endswith(" [CADET]"):
-                            discord_name = re.sub(r'\s*\[CADET\]$', '', discord_name)
-                        elif discord_name.endswith(" [TRAINEE]"):
-                            discord_name = re.sub(r'\s*\[TRAINEE\]$', '', discord_name)
-                        elif discord_name.endswith(" [SWAT]"):
-                            discord_name = re.sub(r'\s*\[SWAT\]$', '', discord_name)
-                        if username.lower() == discord_name.lower():
-                            if CADET_ROLE_ID in details["roles"]:
-                                matching_players.append({
-                                    "username": username,
-                                    "type": "cadet",
-                                    "discord_id": details["id"],
-                                    "rank": get_rank_from_roles(details["roles"])
-                                })
-                                log("info", f"Spieler ist ein Cadet: {username} -> " + str(get_rank_from_roles(details["roles"])) + ")")
-                                break
-                            elif TRAINEE_ROLE_ID in details["roles"]:
-                                matching_players.append({
-                                    "username": username,
-                                    "type": "trainee",
-                                    "discord_id": details["id"],
-                                    "rank": get_rank_from_roles(details["roles"])
-                                })
-                                log("info", f"Spieler ist ein Trainee: {username} -> " + str(get_rank_from_roles(details["roles"])) + ")")
-                                break
-                            elif SWAT_ROLE_ID in details["roles"]:
-                                matching_players.append({
-                                    "username": username,
-                                    "type": "SWAT",
-                                    "discord_id": details["id"],
-                                    "rank": get_rank_from_roles(details["roles"])
-                                })
-                                log("info", f"Spieler ist SWAT, aber noch kein API Update: {username} (SWAT -> " + str(get_rank_from_roles(details["roles"])) + ")")
-                                break
+        # Create new embed
+        embed_pre = await create_embed(region, matching_players, queue_data, fivem_data)
+        # Update existing or create new
+        if os.path.exists(embed_file_name) and os.path.getsize(embed_file_name) > 0:
+            with open(embed_file_name, "r") as f:
+                stored_embeds = json.load(f)
+            for em in stored_embeds:
+                if em["region"] == region:
+                    msg = await client.get_channel(em["channel_id"]).fetch_message(em["message_id"])
+                    await msg.edit(embed=embed_pre)
+                    break
+            else:
+                msg_send = await channel.send(embed=embed_pre)
+                stored_embeds.append({"region": region, "channel_id": msg_send.channel.id, "message_id": msg_send.id})
+            with open(embed_file_name, "w") as f:
+                json.dump(stored_embeds, f)
         else:
-            matching_players = None
+            msg_send = await channel.send(embed=embed_pre)
+            new_data = [{"region": region, "channel_id": msg_send.channel.id, "message_id": msg_send.id}]
+            with open(embed_file_name, "w") as f:
+                json.dump(new_data, f)
 
-        matching_players.sort(key=lambda x: RANK_HIERARCHY.index(x["rank"]) if x["rank"] in RANK_HIERARCHY else len(RANK_HIERARCHY), reverse=False)
-        print_variable(matching_players, "matching players")
-
-        with open(embeds_file_name, 'r') as file_obj:
-            first_char = file_obj.read(1)
-            
-        if matching_players == None:
-            player_count = 0
-        else:
-            player_count = len(matching_players)
-
-        if first_char:
-            file_xxxx = open(embeds_file_name, "r")
-            embed_file = json.loads(file_xxxx.read())
-
-            log("info", f"Gefundene Übereinstimmungen für Region {region}: " + str(player_count))
-            embed_pre = await create_embed(region, matching_players, queue_data, fivem_data)
-            for i in embed_file:
-                if i["region"] == region:
-                    channel = client.get_channel(i["channel_id"])
-                    if channel is None:
-                        log("error", "Kanal nicht gefunden")
-                        return
-
-                    message = await channel.fetch_message(i["message_id"])
-                    if message is None:
-                        log("error", "Nachricht nicht gefunden")
-                        return
-                    await asyncio.sleep(1)
-                    await message.edit(embed=embed_pre)
-        else:
-            embed_file = ""
-            log("info", f"Gefundene Übereinstimmungen für Region {region}:" + str(player_count))
-            embed_pre = await create_embed(region, matching_players, queue_data, fivem_data)
-            embed_send = await channel.send(embed=embed_pre)
-            embeds.append({
-                "region": region,
-                "channel_id": embed_send.channel.id,
-                "message_id": embed_send.id
-            })
-
-    if embeds:
-        log("info", embeds)
-        f = open(embeds_file_name, "w")
-        f.write(json.dumps(embeds))
-        f.close()
-
-# Token laden und Bot starten
-if TESTING:
-    file_name = "token-test.txt"
-else:
-    file_name = "token.txt"
-
+# --- Bot Token Loader ---
+file_name = TOKEN_FILE
 with open(file_name, "r") as file:
     TOKEN = file.read().strip()
 

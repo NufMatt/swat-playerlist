@@ -3,11 +3,10 @@ from discord.ext import tasks, commands
 import requests, json, datetime, re, pytz, logging, os, sys, aiohttp, asyncio
 from datetime import datetime, timedelta
 from config import (
-    TESTING, USE_LOCAL_JSON, LOCAL_JSON_FILE, CHECK_INTERVAL, CACHE_UPDATE_INTERVAL,
+    USE_LOCAL_JSON, LOCAL_JSON_FILE, CHECK_INTERVAL, CACHE_UPDATE_INTERVAL,
     PClOGGING, LOG_FILENAME, CHAT_ID, API_URLS, API_URLS_FIVEM, STATUS_CHANNEL_ID, 
     GUILD_ID, MENTOR_ROLE_ID, CADET_ROLE_ID, TRAINEE_ROLE_ID, SWAT_ROLE_ID,
-    RANK_HIERARCHY, ROLE_TO_RANK, EMBEDS_FILE_TEST, EMBEDS_FILE,
-    TOKEN_TEST_FILE, TOKEN_FILE
+    RANK_HIERARCHY, ROLE_TO_RANK, EMBEDS_FILE, TOKEN_FILE
 )
 
 requests.packages.urllib3.disable_warnings()
@@ -78,6 +77,7 @@ async def fetch_players(region):
         return []
     try:
         async with aiohttp.ClientSession() as session:
+            await asyncio.sleep(1)
             async with session.get(url) as resp:
                 resp.raise_for_status()
                 resp.encoding = 'latin-1'
@@ -146,6 +146,23 @@ def get_rank_from_roles(roles):
     return None
 
 async def create_embed(region, matching_players, queue_data, fivem_data):
+    offline = False
+    embed_color = 0x28ef05  # default green
+
+    if queue_data and region in queue_data:
+        try:
+            last_heartbeat = datetime.fromisoformat(
+                queue_data[region]["LastHeartbeatDateTime"].replace("Z", "+00:00")
+            )
+            if datetime.now(pytz.UTC) - last_heartbeat > timedelta(minutes=10):
+                offline = True
+                embed_color = 0xf40006  # red
+        except:
+            pass
+    else:
+        offline = True
+        embed_color = 0xf40006  # red
+
     flags = {"EU": "🇪🇺 ", "NA": "🇺🇸 ", "SEA": "🇸🇬 "}
     region_name = region[:-1] if region[-1].isdigit() else region
     title = f"{flags.get(region_name, '')}{region}"
@@ -154,12 +171,11 @@ async def create_embed(region, matching_players, queue_data, fivem_data):
         e = client.get_emoji(eid)
         return str(e if e else default)
 
-    embed_color = 0x28ef05 if matching_players else 0xf40006
     embed = discord.Embed(title=title, colour=embed_color)
     offline = False
 
     # Check if server offline / no data
-    if matching_players is not None:
+    if matching_players is not None and offline is not True:
         swat_count = sum(p["type"] in ("unknown", "SWAT", "mentor") for p in matching_players)
         mentor_count = sum(p["type"] == "mentor" for p in matching_players)
         trainee_count = sum(p["type"] in ("trainee", "cadet") for p in matching_players)
@@ -224,7 +240,7 @@ async def update_game_status():
     await update_discord_cache()
     queue_data = await getqueuedata()
     fivem_data = await get_fivem_data()
-    embed_file_name = EMBEDS_FILE_TEST if TESTING else EMBEDS_FILE
+    embed_file_name = EMBEDS_FILE
     channel = client.get_channel(STATUS_CHANNEL_ID)
     if not channel: return log("error", f"Status-Kanal {STATUS_CHANNEL_ID} nicht gefunden.")
 
@@ -288,7 +304,7 @@ async def update_game_status():
                 json.dump(new_data, f)
 
 # --- Bot Token Loader ---
-file_name = TOKEN_TEST_FILE if TESTING else TOKEN_FILE
+file_name = TOKEN_FILE
 with open(file_name, "r") as file:
     TOKEN = file.read().strip()
 
