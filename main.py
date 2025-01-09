@@ -259,7 +259,7 @@ async def update_game_status():
                     cleaned_name = re.sub(r'^\[SWAT\]\s*', '', username, flags=re.IGNORECASE)
                     discord_found = False
                     for discord_name, details in discord_cache["members"].items():
-                        compare_dn = re.sub(r'^\[SWAT\]\s*', '', discord_name, flags=re.IGNORECASE)
+                        compare_dn = re.sub(r'\s*\[SWAT\]$', '', discord_name, flags=re.IGNORECASE)
                         if cleaned_name.lower() == compare_dn.lower():
                             discord_found = True
                             mtype = "mentor" if MENTOR_ROLE_ID in details["roles"] else "SWAT"
