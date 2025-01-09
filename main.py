@@ -50,9 +50,6 @@ def log(log_type, content):
     else:
         logging.info(content)
 
-def fix_encoding_latin1_to_utf8(text: str) -> str:
-    return text.encode('latin-1', errors='replace').decode('utf-8', errors='replace')
-
 @client.event
 async def on_ready():
     log("info", f"Bot ist online als {client.user}")
@@ -80,8 +77,8 @@ async def fetch_players(region):
             await asyncio.sleep(1)
             async with session.get(url) as resp:
                 resp.raise_for_status()
-                resp.encoding = 'latin-1'
-                data = json.loads(fix_encoding_latin1_to_utf8(await resp.text()))
+                resp.encoding = 'utf-8'
+                data = json.loads(await resp.text())
                 return data
     except aiohttp.ClientError as e:
         log("error", f"Fehler beim Abrufen der API-Daten: {e}")
@@ -90,6 +87,7 @@ async def fetch_players(region):
 async def getqueuedata():
     try:
         r = requests.get("https://api.gtacnr.net/cnr/servers")
+        r.encoding = 'utf-8' 
         r.raise_for_status()
         data = json.loads(r.text)
         queue_info = {entry["Id"]: entry for entry in data}
@@ -106,6 +104,7 @@ async def get_fivem_data():
         for region, url in API_URLS_FIVEM.items():
             try:
                 async with session.get(url, ssl=False, timeout=aiohttp.ClientTimeout(total=3)) as response:
+                    response.encoding = 'utf-8' 
                     response.raise_for_status()
                     fivem_data[region] = json.loads(await response.text())
             except Exception as e:
