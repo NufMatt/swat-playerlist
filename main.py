@@ -122,7 +122,7 @@ async def fetch_players(region):
 async def getqueuedata():
     try:
         # Set a timeout (in seconds), for example 5 seconds
-        r = requests.get("https://api.gtacnr.net/cnr/servers", timeout=5)
+        r = requests.get("https://api.gtacnr.net/cnr/servers", timeout=2)
         r.encoding = 'utf-8'
         r.raise_for_status()
         data = json.loads(r.text)
