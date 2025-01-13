@@ -31,7 +31,7 @@ logging.basicConfig(
 embeds = []
 discord_cache = {"timestamp": None, "members": {}}
 
-ERROR_BUFFER_COOLDOWN_SECONDS = 5 * 60  # 300s => 5 minutes
+ERROR_BUFFER_COOLDOWN_SECONDS = 10 * 60  # 300s => 5 minutes
 error_buffer = []  # collects error/critical messages
 error_buffer_start_time = datetime.now()
 def send_telegram(message_temp):
