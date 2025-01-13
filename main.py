@@ -30,12 +30,47 @@ logging.basicConfig(
 # Global variables
 embeds = []
 discord_cache = {"timestamp": None, "members": {}}
+TELEGRAM_COOLDOWN_SECONDS = 5 * 60  # 5 minutes
+last_telegram_time = {
+    "error": None,
+    "critical": None
+}
 
 def send_telegram(message_temp):
     with open("tgtoken.txt", "r") as file:
         TGTOKEN = file.read().strip()
     url = f"https://api.telegram.org/bot{TGTOKEN}/sendMessage?chat_id={CHAT_ID}&text={message_temp}"
     requests.get(url).json()
+
+def _maybe_send_telegram(log_type, message):
+    now = datetime.now()
+    global last_telegram_time
+
+    # Only do cooldown logic for 'error' or 'critical'
+    if log_type not in ("error", "critical"):
+        send_telegram(message)
+        return
+
+    last_time = last_telegram_time[log_type]
+    if last_time is None or (now - last_time).total_seconds() > TELEGRAM_COOLDOWN_SECONDS:
+        send_telegram(message)
+        last_telegram_time[log_type] = now
+
+def log(log_type, content):
+    ts = datetime.now().strftime('%d.%m.%Y %H:%M:%S')
+    print(f"[{ts}] {content}")
+    
+    # Always log
+    if log_type == "warning":
+        logging.warning(content)
+    elif log_type == "error":
+        logging.error(content)
+        _maybe_send_telegram("error", f"ERROR: [{ts}] {content}")
+    elif log_type == "critical":
+        logging.critical(content)
+        _maybe_send_telegram("critical", f"CRITICAL: [{ts}] {content}")
+    else:
+        logging.info(content)
 
 def log(log_type, content):
     ts = datetime.now().strftime('%d.%m.%Y %H:%M:%S')
