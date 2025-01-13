@@ -30,60 +30,54 @@ logging.basicConfig(
 # Global variables
 embeds = []
 discord_cache = {"timestamp": None, "members": {}}
-TELEGRAM_COOLDOWN_SECONDS = 5 * 60  # 5 minutes
-last_telegram_time = {
-    "error": None,
-    "critical": None
-}
 
+ERROR_BUFFER_COOLDOWN_SECONDS = 5 * 60  # 300s => 5 minutes
+error_buffer = []  # collects error/critical messages
+error_buffer_start_time = datetime.now()
 def send_telegram(message_temp):
     with open("tgtoken.txt", "r") as file:
         TGTOKEN = file.read().strip()
     url = f"https://api.telegram.org/bot{TGTOKEN}/sendMessage?chat_id={CHAT_ID}&text={message_temp}"
     requests.get(url).json()
 
-def _maybe_send_telegram(log_type, message):
-    now = datetime.now()
-    global last_telegram_time
-
-    # Only do cooldown logic for 'error' or 'critical'
-    if log_type not in ("error", "critical"):
-        send_telegram(message)
-        return
-
-    last_time = last_telegram_time[log_type]
-    if last_time is None or (now - last_time).total_seconds() > TELEGRAM_COOLDOWN_SECONDS:
-        send_telegram(message)
-        last_telegram_time[log_type] = now
-
 def log(log_type, content):
+    global error_buffer, error_buffer_start_time
+    
     ts = datetime.now().strftime('%d.%m.%Y %H:%M:%S')
     print(f"[{ts}] {content}")
     
-    # Always log
+    # Always log to file (same as before)
     if log_type == "warning":
         logging.warning(content)
     elif log_type == "error":
         logging.error(content)
-        _maybe_send_telegram("error", f"ERROR: [{ts}] {content}")
+        # Add to our error buffer
+        error_buffer.append(f"[{ts}] ERROR: {content}")
     elif log_type == "critical":
         logging.critical(content)
-        _maybe_send_telegram("critical", f"CRITICAL: [{ts}] {content}")
+        # Add to our error buffer
+        error_buffer.append(f"[{ts}] CRITICAL: {content}")
     else:
         logging.info(content)
-
-def log(log_type, content):
-    ts = datetime.now().strftime('%d.%m.%Y %H:%M:%S')
-    print(f"[{ts}] {content}")
-    if log_type == "warning": logging.warning(content)
-    elif log_type == "error":
-        logging.error(content)
-        send_telegram(f"ERROR: [{ts}] {content}")
-    elif log_type == "critical":
-        logging.critical(content)
-        send_telegram(f"CRITICAL: [{ts}] {content}")
-    else:
-        logging.info(content)
+    
+    # -- After logging, check if 5 minutes have passed since we started this buffer
+    now_dt = datetime.now()
+    elapsed = (now_dt - error_buffer_start_time).total_seconds()
+    if elapsed >= ERROR_BUFFER_COOLDOWN_SECONDS:
+        # It's been at least 5 minutes
+        if error_buffer:
+            # We have some errors to send, combine them into one message
+            summary_message = (
+                "Fehler/Fehlermeldungen im letzten 5-Minuten-Fenster:\n\n"
+                + "\n".join(error_buffer)
+            )
+            send_telegram(summary_message)
+            
+            # Clear the buffer
+            error_buffer.clear()
+        
+        # Reset the start time so we start a fresh 5-minute window
+        error_buffer_start_time = now_dt
 
 @client.event
 async def on_ready():
