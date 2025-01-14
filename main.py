@@ -31,7 +31,7 @@ logging.basicConfig(
 embeds = []
 discord_cache = {"timestamp": None, "members": {}}
 
-ERROR_BUFFER_COOLDOWN_SECONDS = 10 * 60  # 300s => 5 minutes
+ERROR_BUFFER_COOLDOWN_SECONDS = 5 * 60  # 300s => 5 minutes
 error_buffer = []  # collects error/critical messages
 error_buffer_start_time = datetime.now()
 def send_telegram(message_temp):
@@ -97,22 +97,22 @@ async def fetch_players(region):
         except (FileNotFoundError, json.JSONDecodeError) as e:
             log("error", f"Fehler beim Lesen der JSON-Datei: {e}")
             return []
+
     url = API_URLS.get(region)
     if not url:
         log("error", f"Keine API-URL für Region {region} definiert.")
         return []
+
     try:
-        # Add a total or read timeout here
-        timeout = aiohttp.ClientTimeout(total=2)
+        # We add a timeout and a short sleep before each request:
+        await asyncio.sleep(0.1)  # Tiny delay before each fetch
+        timeout = aiohttp.ClientTimeout(total=5)
         async with aiohttp.ClientSession(timeout=timeout) as session:
-            await asyncio.sleep(1)
             async with session.get(url) as resp:
                 resp.raise_for_status()
-                resp.encoding = 'utf-8'
                 data = json.loads(await resp.text())
                 return data
     except asyncio.TimeoutError:
-        # Specifically log a timeout and return None => triggers offline status
         log("error", f"Timeout beim Abrufen der API-Daten für Region {region}")
         return None
     except aiohttp.ClientError as e:
@@ -121,8 +121,7 @@ async def fetch_players(region):
 
 async def getqueuedata():
     try:
-        # Set a timeout (in seconds), for example 5 seconds
-        r = requests.get("https://api.gtacnr.net/cnr/servers", timeout=2)
+        r = requests.get("https://api.gtacnr.net/cnr/servers", timeout=3)
         r.encoding = 'utf-8'
         r.raise_for_status()
         data = json.loads(r.text)
@@ -148,8 +147,7 @@ async def get_fivem_data():
     async with aiohttp.ClientSession() as session:
         for region, url in API_URLS_FIVEM.items():
             try:
-                async with session.get(url, ssl=False, timeout=aiohttp.ClientTimeout(total=3)) as response:
-                    response.encoding = 'utf-8' 
+                async with session.get(url, ssl=False, timeout=aiohttp.ClientTimeout(total=5)) as response:
                     response.raise_for_status()
                     fivem_data[region] = json.loads(await response.text())
             except Exception as e:
@@ -301,10 +299,11 @@ async def update_game_status():
     
     # 3) Create tasks to fetch players data for each region
     regions = list(API_URLS.keys())
-    tasks = [fetch_players(region) for region in regions]
-    
-    # 4) Gather all tasks => we get a list of results in the same order as 'regions'
-    results = await asyncio.gather(*tasks, return_exceptions=True)
+    results = []
+    for region in regions:
+        players = await fetch_players(region)  # Wait for each call
+        results.append(players)
+        await asyncio.sleep(1)  # 1-second pause between calls
     
     # 5) Store each region's 'players' result in a dict
     region_players_map = dict(zip(regions, results))
@@ -420,6 +419,7 @@ async def update_or_create_embed_for_region(channel, region, embed_pre, stored_e
                 try:
                     msg = await channel.fetch_message(em["message_id"])
                     await msg.edit(embed=embed_pre)
+                    await asyncio.sleep(1)
                     break  # success => break out of the retry loop
                 except discord.HTTPException as e:
                     if e.status == 503:
@@ -450,6 +450,7 @@ async def update_or_create_embed_for_region(channel, region, embed_pre, stored_e
                     "channel_id": msg_send.channel.id, 
                     "message_id": msg_send.id
                 })
+                await asyncio.sleep(1)
                 break
             except discord.HTTPException as e:
                 if e.status == 503:
