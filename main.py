@@ -105,7 +105,7 @@ async def fetch_players(region):
 
     try:
         # We add a timeout and a short sleep before each request:
-        await asyncio.sleep(0.1)  # Tiny delay before each fetch
+        await asyncio.sleep(1)  # Tiny delay before each fetch
         timeout = aiohttp.ClientTimeout(total=5)
         async with aiohttp.ClientSession(timeout=timeout) as session:
             async with session.get(url) as resp:
@@ -150,6 +150,7 @@ async def get_fivem_data():
                 async with session.get(url, ssl=False, timeout=aiohttp.ClientTimeout(total=5)) as response:
                     response.raise_for_status()
                     fivem_data[region] = json.loads(await response.text())
+                    await asyncio.sleep(1)
             except Exception as e:
                 log("warning", f"Fehler beim Abrufen der Fivem Daten {region}: {e}")
                 fivem_data[region] = None
