@@ -397,6 +397,7 @@ async def update_game_status():
         embed_pre = await create_embed(region, matching_players, queue_data, fivem_data)
 
         # --- Now, update or create the embed for that region ---
+        await asyncio.sleep(1)
         await update_or_create_embed_for_region(channel, region, embed_pre, stored_embeds)
 
     # After all regions are processed, rewrite the stored_embeds file
