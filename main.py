@@ -168,20 +168,21 @@ async def update_discord_cache():
     dc_members = {m.display_name: {"id": m.id, "roles": [r.id for r in m.roles]} for m in guild.members}
     discord_cache.update({"timestamp": now, "members": dc_members})
     
-    '''
+    
     activity = []
     for discord_name, details in discord_cache["members"].items():
         normalized_name = re.sub(r'\s*\[SWAT\]$', '', discord_name, flags=re.IGNORECASE)
         if 1328622646283341869 in details["roles"]: # 1328622646283341869
             activity.append({
                 "username": normalized_name,
-                "rank": get_rank_from_roles(details["roles"])
+                "rank": get_rank_from_roles(details["roles"]),
+                "id": details["id"]
             })
     
     for i in activity:
-        xabcde = str(i["username"]) + " > " + str(i["rank"])
+        xabcde = str(i["username"]) + " - " + str(i["rank"]  + " - " + str(i["id"]))
         print(xabcde)
-    '''
+    
     
     await asyncio.sleep(5)
     log("info", "Discord-Cache wurde aktualisiert!")
