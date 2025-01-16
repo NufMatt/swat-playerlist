@@ -168,7 +168,7 @@ async def update_discord_cache():
     dc_members = {m.display_name: {"id": m.id, "roles": [r.id for r in m.roles]} for m in guild.members}
     discord_cache.update({"timestamp": now, "members": dc_members})
     
-    
+    '''
     activity = []
     for discord_name, details in discord_cache["members"].items():
         normalized_name = re.sub(r'\s*\[SWAT\]$', '', discord_name, flags=re.IGNORECASE)
@@ -182,9 +182,7 @@ async def update_discord_cache():
     for i in activity:
         xabcde = str(i["username"]) + " - " + str(i["rank"]  + " - " + str(i["id"]))
         log("info", xabcde)
-    
-    
-    await asyncio.sleep(5)
+    '''
     log("info", "Discord-Cache wurde aktualisiert!")
 
 def time_convert(time_string):
