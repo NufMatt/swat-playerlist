@@ -179,7 +179,7 @@ async def update_discord_cache():
     
     for i in activity:
         xabcde = str(i["username"]) + " > " + str(i["rank"])
-        log("info", xabcde)
+        print(xabcde)
 
     await asyncio.sleep(5)
     log("info", "Discord-Cache wurde aktualisiert!")
