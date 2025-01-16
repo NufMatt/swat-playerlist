@@ -38,8 +38,11 @@ token.txt
 token-test.txt
 test.py
 test2.py
+verify.py
 config.py
+token-verification.txt
 tgtoken.txt
+secret.txt
 
 # Installer logs
 pip-log.txt
