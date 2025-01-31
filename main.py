@@ -110,7 +110,8 @@ async def fetch_players(region):
         async with aiohttp.ClientSession(timeout=timeout) as session:
             async with session.get(url) as resp:
                 resp.raise_for_status()
-                data = json.loads(await resp.text())
+                text = await resp.text(encoding='utf-8')
+                data = json.loads(text)
                 return data
     except asyncio.TimeoutError:
         log("error", f"Timeout beim Abrufen der API-Daten für Region {region}")
@@ -131,6 +132,8 @@ async def getqueuedata():
             queue_info["NA1"] = queue_info.pop("US1")
         if "US2" in queue_info:
             queue_info["NA2"] = queue_info.pop("US2")
+        if "US3" in queue_info:
+            queue_info["NA3"] = queue_info.pop("US3")
 
         return queue_info
 
@@ -149,7 +152,8 @@ async def get_fivem_data():
             try:
                 async with session.get(url, ssl=False, timeout=aiohttp.ClientTimeout(total=5)) as response:
                     response.raise_for_status()
-                    fivem_data[region] = json.loads(await response.text())
+                    text = await response.text(encoding='utf-8')
+                    fivem_data[region] = json.loads(text)
                     await asyncio.sleep(1)
             except Exception as e:
                 log("warning", f"Fehler beim Abrufen der Fivem Daten {region}: {e}")
