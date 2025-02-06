@@ -38,7 +38,7 @@ def send_telegram(message_temp):
     with open("tgtoken.txt", "r") as file:
         TGTOKEN = file.read().strip()
     url = f"https://api.telegram.org/bot{TGTOKEN}/sendMessage?chat_id={CHAT_ID}&text={message_temp}"
-    requests.get(url).json()
+    # requests.get(url).json()
 
 def log(log_type, content):
     global error_buffer, error_buffer_start_time
