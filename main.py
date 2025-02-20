@@ -29,7 +29,6 @@ def load_servers_config():
         SERVERS_CONFIG = {}
         logging.error(f"{SERVERS_CONFIG_FILE} not found. Please create this file with the required server info.")
 
-# Initially load the config.
 load_servers_config()
 
 # ------------------- Global Failure Counter -------------------
@@ -59,8 +58,7 @@ error_buffer_start_time = datetime.now()
 
 # ------------------- Testing Override -------------------
 # For testing, force specific servers to a given status:
-# Set value to True to force the server to be "offline", or False to force it online.
-# Remove or clear this dictionary for production.
+# Set value to True to force "offline", or False to force "online".
 TEST_OVERRIDE_STATUS = {
     # "EU1": True,
     # "NA2": True,
@@ -75,6 +73,23 @@ def get_players_api_url(region: str) -> str:
         return f"https://api.gtacnr.net/cnr/players?serverId=US{region[2:]}"
     else:
         return f"https://api.gtacnr.net/cnr/players?serverId={region}"
+
+# ------------------- Normalization Helper -------------------
+def normalize_queue_info(data):
+    if isinstance(data, str):
+        data = json.loads(data)
+    if isinstance(data, list):
+        queue_info = {entry["Id"]: entry for entry in data}
+    elif isinstance(data, dict):
+        queue_info = {entry["Id"]: entry for entry in data.get("servers", [])}
+    else:
+        queue_info = {}
+    
+    for us, na in [("US1", "NA1"), ("US2", "NA2"), ("US3", "NA3")]:
+        if us in queue_info:
+            queue_info[na] = queue_info.pop(us)
+    return queue_info
+
 
 # ------------------- Utility Functions -------------------
 def send_telegram(message_temp):
@@ -153,13 +168,7 @@ async def getqueuedata():
         r.encoding = 'utf-8'
         r.raise_for_status()
         data = json.loads(r.text)
-        queue_info = {entry["Id"]: entry for entry in data}
-        if "US1" in queue_info:
-            queue_info["NA1"] = queue_info.pop("US1")
-        if "US2" in queue_info:
-            queue_info["NA2"] = queue_info.pop("US2")
-        if "US3" in queue_info:
-            queue_info["NA3"] = queue_info.pop("US3")
+        queue_info = normalize_queue_info(data)
         log("info", "Fetched queue data.")
         return queue_info
     except requests.Timeout:
@@ -174,6 +183,7 @@ async def get_fivem_data():
     async with aiohttp.ClientSession() as session:
         for region, config_data in SERVERS_CONFIG.items():
             url = config_data.get("api_url")
+            print(url)
             if not url:
                 log("error", f"No API URL for region {region}.")
                 fivem_data[region] = None
@@ -182,12 +192,14 @@ async def get_fivem_data():
                 async with session.get(url, ssl=False, timeout=aiohttp.ClientTimeout(total=5)) as response:
                     response.raise_for_status()
                     text = await response.text(encoding='utf-8')
+                    print(text)
                     fivem_data[region] = json.loads(text)
                     log("info", f"Fetched FiveM data for region {region}.")
                     await asyncio.sleep(1)
             except Exception as e:
                 log("warning", f"Error fetching FiveM data for region {region}: {e}")
                 fivem_data[region] = None
+        print(fivem_data)
         return fivem_data
 
 async def update_discord_cache():
@@ -204,19 +216,18 @@ async def update_discord_cache():
     log("info", "Discord cache updated.")
 
 def time_convert(time_string):
+    # Next Restart Time converter for FiveM
     m = re.match(r'^(.+) (\d{2}):(\d{2})$', time_string)
-    if not m:
-        return "*Restarting now*"
+    if not m: return "*Restarting now*"
     d, hh, mm = m.groups()
     hh, mm = int(hh), int(mm)
     days = ['Saturday','Friday','Thursday','Wednesday','Tuesday','Monday','Sunday']
-    total_hours = (days.index(d) * 24 * 60 + (24 - hh - 1) * 60 + (60 - mm)) // 60
-    if not total_hours:
-        return "*Restarting now*"
+    total_hours = (days.index(d)*24*60 + (24-hh-1)*60 + (60-mm))//60
+    if not total_hours: return "*Restarting now*"
     h, r = divmod(total_hours, 60)
-    hs = f"{h} hour{'s' if h != 1 else ''}" if h else ""
-    rs = f"{r} minute{'s' if r != 1 else ''}" if r else ""
-    return f"*Next restart in ~{hs + ' and ' + rs if hs and rs else hs or rs}*"
+    hs = f"{h} hour{'s'*(h!=1)}" if h else ""
+    rs = f"{r} minute{'s'*(r!=1)}" if r else ""
+    return f"*Next restart in ~{hs+' and '+rs if hs and rs else hs or rs}*"
 
 def get_rank_from_roles(roles):
     for r_id, rank in ROLE_TO_RANK.items():
@@ -227,10 +238,10 @@ def get_rank_from_roles(roles):
 # ------------------- Embed Creation & Update Functions -------------------
 async def create_embed(region, matching_players, queue_data, fivem_data):
     offline = False
-    embed_color = 0x28ef05  # default green
+    embed_color = 0x28ef05  # green for online
     if matching_players is None or (fivem_data and fivem_data.get(region) is None):
         offline = True
-        embed_color = 0xf40006  # red
+        embed_color = 0xf40006  # red for offline
         log("info", f"Region {region} marked offline (missing players or FiveM data).")
     if queue_data and region in queue_data and not offline:
         try:
@@ -252,8 +263,8 @@ async def create_embed(region, matching_players, queue_data, fivem_data):
     
     if offline:
         embed.add_field(name="Server or API down?", value="No Data for this server!", inline=False)
-        embed.add_field(name="🎮Players:", value="```no data```", inline=True)
-        embed.add_field(name="⌛Queue:", value="```no data```", inline=True)
+        embed.add_field(name="Players:", value="```no data```", inline=True)
+        embed.add_field(name="Queue:", value="```no data```", inline=True)
         embed.set_footer(text="Refreshes every 60 second")
         embed.timestamp = datetime.now()
         return embed
@@ -261,14 +272,13 @@ async def create_embed(region, matching_players, queue_data, fivem_data):
     swat_count = sum(p["type"] in ("unknown", "SWAT", "mentor") for p in matching_players)
     mentor_count = sum(p["type"] == "mentor" for p in matching_players)
     trainee_count = sum(p["type"] in ("trainee", "cadet") for p in matching_players)
-    
-    print(fivem_data)
-    print(f"Time in server {region}: {fivem_data[region]["vars"]["Time"]}")
-    
     try:
-        restart_timer = time_convert(fivem_data[region]["vars"]["Time"])
+        restart_val = fivem_data.get(region, {}).get("vars", {}).get("Time")
+        if not restart_val:
+            raise ValueError("Missing 'Time' field")
+        restart_timer = time_convert(restart_val)
     except Exception as e:
-        log("warning", f"No restart data for {region}: {e}")
+        log("warning", f"No restart data for {region}: {e} -- raw data: {fivem_data.get(region)}")
         restart_timer = "*No restart data available!*"
     if mentor_count:
         val = ""
@@ -379,14 +389,11 @@ async def update_embed_slots(channel, embed_list, stored_slots):
 @tasks.loop(seconds=CHECK_INTERVAL)
 async def update_game_status():
     log("info", "----- Starting update_game_status cycle -----")
-    # Reload the servers config file each cycle.
     load_servers_config()
-    # Update Discord cache.
     await update_discord_cache()
-    # Retrieve queue and FiveM data.
     queue_data = await getqueuedata()
     fivem_data = await get_fivem_data()
-    # Fetch players data for each region.
+    
     regions = ORDERED_REGIONS
     results = []
     for region in regions:
@@ -395,7 +402,6 @@ async def update_game_status():
         await asyncio.sleep(1)
     region_players_map = dict(zip(regions, results))
     
-    # Failure tracking.
     for region in regions:
         players = region_players_map.get(region)
         if players is None or (fivem_data and fivem_data.get(region) is None):
@@ -408,7 +414,6 @@ async def update_game_status():
         else:
             failure_counts[region] = 0
 
-    # Build embed list.
     embed_list = []
     for region in regions:
         players = region_players_map.get(region)
@@ -470,23 +475,18 @@ async def update_game_status():
         if matching_players is not None:
             matching_players.sort(key=lambda x: RANK_HIERARCHY.index(x["rank"]) if x["rank"] in RANK_HIERARCHY else len(RANK_HIERARCHY))
         embed_obj = await create_embed(region, matching_players, queue_data, fivem_data)
-        # Determine offline flag.
         offline = False
         if matching_players is None or (fivem_data and fivem_data.get(region) is None):
             offline = True
-        # Testing override.
         if region in TEST_OVERRIDE_STATUS:
             log("info", f"TEST OVERRIDE: Forcing region {region} to be " +
                 ("offline" if TEST_OVERRIDE_STATUS[region] else "online") + ".")
             offline = TEST_OVERRIDE_STATUS[region]
-        # (No renaming of title—color alone indicates status.)
         embed_list.append((region, embed_obj, offline))
     
     log("info", f"Embed list before sorting: {[ (r, 'OFFLINE' if off else 'ONLINE') for r,_,off in embed_list ]}")
-    
     embed_list.sort(key=lambda x: (0 if x[2] else 1,
                                    ORDERED_REGIONS.index(x[0]) if x[0] in ORDERED_REGIONS else 999))
-    
     log("info", f"Embed list after sorting: {[ (r, 'OFFLINE' if off else 'ONLINE') for r,_,off in embed_list ]}")
     
     channel = client.get_channel(STATUS_CHANNEL_ID)
