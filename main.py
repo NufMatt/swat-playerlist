@@ -2,7 +2,7 @@ import discord
 from discord.ext import tasks, commands
 import requests, json, re, pytz, logging, os, sys, aiohttp, asyncio
 from datetime import datetime, timedelta
-# Import only non-connection-related constants from config.
+# Only non‑connection parameters come from config.
 from config import (
     USE_LOCAL_JSON, LOCAL_JSON_FILE, CHECK_INTERVAL, CACHE_UPDATE_INTERVAL,
     PClOGGING, LOG_FILENAME, CHAT_ID, STATUS_CHANNEL_ID, 
@@ -14,14 +14,23 @@ from config import (
 requests.packages.urllib3.disable_warnings()
 
 # ------------------- Load Servers Config -------------------
-# All connection data (both for FiveM and for the players API) is stored here.
 SERVERS_CONFIG_FILE = "servers_config.json"
-if os.path.exists(SERVERS_CONFIG_FILE):
-    with open(SERVERS_CONFIG_FILE, "r") as f:
-        SERVERS_CONFIG = json.load(f)
-else:
-    SERVERS_CONFIG = {}
-    logging.error(f"{SERVERS_CONFIG_FILE} not found. Please create this file with the required server info.")
+def load_servers_config():
+    global SERVERS_CONFIG
+    if os.path.exists(SERVERS_CONFIG_FILE):
+        try:
+            with open(SERVERS_CONFIG_FILE, "r") as f:
+                SERVERS_CONFIG = json.load(f)
+            logging.info(f"Loaded server config from {SERVERS_CONFIG_FILE}.")
+        except Exception as e:
+            logging.error(f"Error loading {SERVERS_CONFIG_FILE}: {e}")
+            SERVERS_CONFIG = {}
+    else:
+        SERVERS_CONFIG = {}
+        logging.error(f"{SERVERS_CONFIG_FILE} not found. Please create this file with the required server info.")
+
+# Initially load the config.
+load_servers_config()
 
 # ------------------- Global Failure Counter -------------------
 failure_counts = {}  # e.g. {"NA1": 0, "EU1": 0, ...}
@@ -48,13 +57,20 @@ ERROR_BUFFER_COOLDOWN_SECONDS = 5 * 60  # 5 minutes
 error_buffer = []  # collects error/critical messages
 error_buffer_start_time = datetime.now()
 
+# ------------------- Testing Override -------------------
+# For testing, force specific servers to a given status:
+# Set value to True to force the server to be "offline", or False to force it online.
+# Remove or clear this dictionary for production.
+TEST_OVERRIDE_STATUS = {
+    # "EU1": True,
+    # "NA2": True,
+}
+
+# ------------------- Desired Online Order -------------------
+ORDERED_REGIONS = ["SEA", "NA3", "NA2", "NA1", "EU2", "EU1"]
+
 # ------------------- Players API URL Helper -------------------
 def get_players_api_url(region: str) -> str:
-    """
-    Derives the players API URL from the region key.
-    For NA servers, convert 'NA1' -> 'US1', etc.
-    For others (EU, SEA), use the region code as-is.
-    """
     if region.startswith("NA"):
         return f"https://api.gtacnr.net/cnr/players?serverId=US{region[2:]}"
     else:
@@ -94,23 +110,24 @@ def log(log_type, content):
 
 @client.event
 async def on_ready():
-    log("info", f"Bot ist online als {client.user}")
+    log("info", f"Bot is online as {client.user}")
     update_game_status.start()
 
 @client.event
 async def on_error(event, *args, **kwargs):
-    log("critical", f'Fehler im Event {event}: {args} {kwargs}')
+    log("critical", f"Error in event {event}: {args} {kwargs}")
     sys.exit(1)
 
 # ------------------- API Functions -------------------
 async def fetch_players(region):
-    # If testing using a local JSON file, bypass HTTP.
     if USE_LOCAL_JSON:
         try:
             with open(LOCAL_JSON_FILE, "r", encoding='utf-8') as file:
-                return json.load(file)
+                data = json.load(file)
+                log("info", f"Fetched players from local JSON for region {region}.")
+                return data
         except (FileNotFoundError, json.JSONDecodeError) as e:
-            log("error", f"Fehler beim Lesen der JSON-Datei: {e}")
+            log("error", f"Error reading local JSON file: {e}")
             return []
     url = get_players_api_url(region)
     try:
@@ -121,12 +138,13 @@ async def fetch_players(region):
                 resp.raise_for_status()
                 text = await resp.text(encoding='utf-8')
                 data = json.loads(text)
+                log("info", f"Fetched players for region {region}.")
                 return data
     except asyncio.TimeoutError:
-        log("error", f"Timeout beim Abrufen der Spieler-Daten für Region {region}")
+        log("error", f"Timeout fetching players for region {region}.")
         return None
     except aiohttp.ClientError as e:
-        log("error", f"Fehler beim Abrufen der Spieler-Daten: {e}")
+        log("error", f"Error fetching players for region {region}: {e}")
         return None
 
 async def getqueuedata():
@@ -142,24 +160,22 @@ async def getqueuedata():
             queue_info["NA2"] = queue_info.pop("US2")
         if "US3" in queue_info:
             queue_info["NA3"] = queue_info.pop("US3")
+        log("info", "Fetched queue data.")
         return queue_info
     except requests.Timeout:
-        log("error", "Timeout beim Abrufen der Queue-Daten.")
+        log("error", "Timeout fetching queue data.")
         return None
     except requests.RequestException as e:
-        log("error", f"Fehler beim Abrufen der Queue-Daten: {e}")
+        log("error", f"Error fetching queue data: {e}")
         return None
 
 async def get_fivem_data():
-    """
-    Retrieves FiveM server info from the servers_config.json connection data.
-    """
     fivem_data = {}
     async with aiohttp.ClientSession() as session:
         for region, config_data in SERVERS_CONFIG.items():
             url = config_data.get("api_url")
             if not url:
-                log("error", f"Keine API-URL für Region {region} gefunden.")
+                log("error", f"No API URL for region {region}.")
                 fivem_data[region] = None
                 continue
             try:
@@ -167,24 +183,25 @@ async def get_fivem_data():
                     response.raise_for_status()
                     text = await response.text(encoding='utf-8')
                     fivem_data[region] = json.loads(text)
+                    log("info", f"Fetched FiveM data for region {region}.")
                     await asyncio.sleep(1)
             except Exception as e:
-                log("warning", f"Fehler beim Abrufen der FiveM-Daten für {region}: {e}")
+                log("warning", f"Error fetching FiveM data for region {region}: {e}")
                 fivem_data[region] = None
         return fivem_data
 
 async def update_discord_cache():
     now = datetime.now()
     if discord_cache["timestamp"] and now - discord_cache["timestamp"] < timedelta(seconds=CACHE_UPDATE_INTERVAL):
-        log("info", "Discord-Cache ist aktuell. Kein Update erforderlich.")
+        log("info", "Discord cache is current; no update needed.")
         return
     guild = client.get_guild(GUILD_ID)
     if not guild:
-        log("error", f"Bot ist in keinem Server mit der ID {GUILD_ID}.")
+        log("error", f"Bot is not in a server with ID {GUILD_ID}.")
         return
     dc_members = {m.display_name: {"id": m.id, "roles": [r.id for r in m.roles]} for m in guild.members}
     discord_cache.update({"timestamp": now, "members": dc_members})
-    log("info", "Discord-Cache wurde aktualisiert!")
+    log("info", "Discord cache updated.")
 
 def time_convert(time_string):
     m = re.match(r'^(.+) (\d{2}):(\d{2})$', time_string)
@@ -193,13 +210,13 @@ def time_convert(time_string):
     d, hh, mm = m.groups()
     hh, mm = int(hh), int(mm)
     days = ['Saturday','Friday','Thursday','Wednesday','Tuesday','Monday','Sunday']
-    total_hours = (days.index(d)*24*60 + (24-hh-1)*60 + (60-mm))//60
+    total_hours = (days.index(d) * 24 * 60 + (24 - hh - 1) * 60 + (60 - mm)) // 60
     if not total_hours:
         return "*Restarting now*"
     h, r = divmod(total_hours, 60)
-    hs = f"{h} hour{'s'*(h!=1)}" if h else ""
-    rs = f"{r} minute{'s'*(r!=1)}" if r else ""
-    return f"*Next restart in ~{hs+' and '+rs if hs and rs else hs or rs}*"
+    hs = f"{h} hour{'s' if h != 1 else ''}" if h else ""
+    rs = f"{r} minute{'s' if r != 1 else ''}" if r else ""
+    return f"*Next restart in ~{hs + ' and ' + rs if hs and rs else hs or rs}*"
 
 def get_rank_from_roles(roles):
     for r_id, rank in ROLE_TO_RANK.items():
@@ -214,16 +231,16 @@ async def create_embed(region, matching_players, queue_data, fivem_data):
     if matching_players is None or (fivem_data and fivem_data.get(region) is None):
         offline = True
         embed_color = 0xf40006  # red
+        log("info", f"Region {region} marked offline (missing players or FiveM data).")
     if queue_data and region in queue_data and not offline:
         try:
-            last_heartbeat = datetime.fromisoformat(
-                queue_data[region]["LastHeartbeatDateTime"].replace("Z", "+00:00")
-            )
+            last_heartbeat = datetime.fromisoformat(queue_data[region]["LastHeartbeatDateTime"].replace("Z", "+00:00"))
             if datetime.now(pytz.UTC) - last_heartbeat > timedelta(minutes=10):
                 offline = True
                 embed_color = 0xf40006
+                log("warning", f"Region {region} marked offline (heartbeat outdated).")
         except Exception as e:
-            log("error", f"Fehler beim Verarbeiten der Heartbeat-Zeit: {e}")
+            log("error", f"Error processing heartbeat for {region}: {e}")
     else:
         offline = True
         embed_color = 0xf40006
@@ -231,9 +248,6 @@ async def create_embed(region, matching_players, queue_data, fivem_data):
     flags = {"EU": "🇪🇺 ", "NA": "🇺🇸 ", "SEA": "🇸🇬 "}
     region_name = region[:-1] if region[-1].isdigit() else region
     title = f"{flags.get(region_name, '')}{region}"
-    def safe_emoji(eid, default="⚫"):
-        e = client.get_emoji(eid)
-        return str(e if e else default)
     embed = discord.Embed(title=title, colour=embed_color)
     
     if offline:
@@ -247,58 +261,56 @@ async def create_embed(region, matching_players, queue_data, fivem_data):
     swat_count = sum(p["type"] in ("unknown", "SWAT", "mentor") for p in matching_players)
     mentor_count = sum(p["type"] == "mentor" for p in matching_players)
     trainee_count = sum(p["type"] in ("trainee", "cadet") for p in matching_players)
+    
+    print(fivem_data)
+    print(f"Time in server {region}: {fivem_data[region]["vars"]["Time"]}")
+    
     try:
         restart_timer = time_convert(fivem_data[region]["vars"]["Time"])
     except Exception as e:
-        log("warning", f"Keine Restart-Daten für {region}: {e}")
+        log("warning", f"No restart data for {region}: {e}")
         restart_timer = "*No restart data available!*"
     if mentor_count:
         val = ""
         for mp in matching_players:
-            if mp["type"] == "mentor":
-                val += f"\n - {mp['username']} (<@{mp['discord_id']}>)" if mp['discord_id'] else f"\n - {mp['username']} (❔)"
-        embed.add_field(name=f"{safe_emoji(1305249069463113818)}Mentors Online:", value=val, inline=False)
+            val += f"\n - {mp['username']} (<@{mp.get('discord_id','') }>)" if mp.get("discord_id") else f"\n - {mp['username']} (❔)"
+        embed.add_field(name="Mentors Online:", value=val, inline=False)
     if swat_count - mentor_count > 0:
         val = ""
         for mp in matching_players:
-            if mp["type"] in ("SWAT", "unknown"):
-                val += f"\n - {mp['username']} (<@{mp['discord_id']}>)" if mp['discord_id'] else f"\n - {mp['username']} (❔)"
+            val += f"\n - {mp['username']} (<@{mp.get('discord_id','') }>)" if mp.get("discord_id") else f"\n - {mp['username']} (❔)"
         embed.add_field(name="SWAT Online:", value=val, inline=False)
     if trainee_count:
         val = ""
         for mp in matching_players:
             if mp["type"] == "trainee":
-                val += f"\n{safe_emoji(1305496951642390579)} {mp['username']} (<@{mp['discord_id']}>)"
+                val += f"\n {mp['username']} (<@{mp.get('discord_id','') }>)"
             elif mp["type"] == "cadet":
-                val += f"\n{safe_emoji(1305496985582698607)} {mp['username']} (<@{mp['discord_id']}>)"
+                val += f"\n {mp['username']} (<@{mp.get('discord_id','') }>)"
         embed.add_field(name="Cadets / Trainees Online:", value=val, inline=False)
-    if all(p["type"] not in ("SWAT","mentor","trainee","cadet","unknown") for p in matching_players):
-        embed.add_field(name="\n*Nobody is online*\n", value="", inline=False)
+    if all(p["type"] not in ("SWAT", "mentor", "trainee", "cadet", "unknown") for p in matching_players):
+        embed.add_field(name="Nobody is online", value="", inline=False)
     if queue_data and region in queue_data:
         p = queue_data[region]
-        embed.add_field(name=f"{safe_emoji(1196404423874854992)}SWAT:", value=f"``` {swat_count} ```", inline=True)
-        embed.add_field(name="🎮Players:", value=f"```{p['Players']}/{p['MaxPlayers']}```", inline=True)
-        embed.add_field(name="⌛Queue:", value=f"```{p['QueuedPlayers']}```", inline=True)
+        embed.add_field(name="SWAT:", value=f"``` {swat_count} ```", inline=True)
+        embed.add_field(name="Players:", value=f"```{p['Players']}/{p['MaxPlayers']}```", inline=True)
+        embed.add_field(name="Queue:", value=f"```{p['QueuedPlayers']}```", inline=True)
         embed.add_field(name="", value=restart_timer, inline=False)
     else:
-        embed.add_field(name=f"{safe_emoji(1196404423874854992)}SWAT:", value=f"```{swat_count}```", inline=True)
-        embed.add_field(name="🎮Players:", value="```no data```", inline=True)
-        embed.add_field(name="⌛Queue:", value="```no data```", inline=True)
+        embed.add_field(name="SWAT:", value=f"```{swat_count}```", inline=True)
+        embed.add_field(name="Players:", value="```no data```", inline=True)
+        embed.add_field(name="Queue:", value="```no data```", inline=True)
     embed.set_footer(text="Refreshes every 60 second")
     embed.timestamp = datetime.now()
     return embed
 
 async def check_and_update_server_info(region):
-    """
-    If a server has failed 5 times in a row, check its current IP and port via the FiveM API.
-    If they differ from what is stored in SERVERS_CONFIG, update the file.
-    """
     if region not in SERVERS_CONFIG:
-        log("error", f"Region {region} nicht in {SERVERS_CONFIG_FILE} gefunden.")
+        log("error", f"Region {region} not found in {SERVERS_CONFIG_FILE}.")
         return
     shortcut = SERVERS_CONFIG[region].get("shortcut")
     if not shortcut:
-        log("error", f"Shortcut für Region {region} nicht definiert.")
+        log("error", f"No shortcut defined for region {region}.")
         return
     url = f"https://servers-frontend.fivem.net/api/servers/single/{shortcut}"
     try:
@@ -323,82 +335,59 @@ async def check_and_update_server_info(region):
                 else:
                     log("info", f"Server {region} info remains unchanged.")
         else:
-            log("warning", f"Keine Endpunkte in der FiveM API Antwort für Region {region} gefunden.")
+            log("warning", f"No endpoints found in FiveM API response for region {region}.")
     except Exception as e:
-        log("error", f"Fehler beim Überprüfen der FiveM Server Info für {region}: {e}")
+        log("error", f"Error checking FiveM server info for {region}: {e}")
 
-async def update_or_create_embed_for_region(channel, region, embed_pre, stored_embeds):
-    """
-    Updates an existing embed message for the given region or creates a new one.
-    """
-    found_existing = False
-    for em in stored_embeds:
-        if em["region"] == region:
-            found_existing = True
-            MAX_RETRIES = 3
-            for attempt in range(1, MAX_RETRIES+1):
-                try:
-                    msg = await channel.fetch_message(em["message_id"])
-                    await msg.edit(embed=embed_pre)
-                    await asyncio.sleep(1)
-                    return {"region": region, "channel_id": msg.channel.id, "message_id": msg.id}
-                except discord.HTTPException as e:
-                    if e.status == 503:
-                        log("warning", f"Discord 503 on attempt {attempt}, region={region}: {e}")
-                        if attempt == MAX_RETRIES:
-                            log("critical", f"Max retries for region={region}, message edit failed!")
-                            send_telegram(f"CRITICAL: Discord 503 - message edit failed for region={region}")
-                        else:
-                            await asyncio.sleep(5)
-                    else:
-                        log("error", f"Discord HTTPException: {e}")
-                        send_telegram(f"ERROR: Discord message edit failed: {e}")
-                        break
-                except Exception as ex:
-                    log("error", f"Unexpected error in msg.edit: {ex}")
-                    break
-            break
-    if not found_existing:
-        MAX_RETRIES = 3
-        for attempt in range(1, MAX_RETRIES+1):
-            try:
-                msg_send = await channel.send(embed=embed_pre)
-                stored_embeds.append({
-                    "region": region, 
-                    "channel_id": msg_send.channel.id, 
-                    "message_id": msg_send.id
-                })
-                await asyncio.sleep(1)
-                return {"region": region, "channel_id": msg_send.channel.id, "message_id": msg_send.id}
-            except discord.HTTPException as e:
-                if e.status == 503:
-                    log("warning", f"Discord 503 on attempt {attempt}, region={region}: {e}")
-                    if attempt == MAX_RETRIES:
-                        log("critical", f"Max retries for region={region}, message sending failed!")
-                        send_telegram(f"CRITICAL: Discord 503 - message sending failed for region={region}")
-                    else:
-                        await asyncio.sleep(5)
-                else:
-                    log("error", f"Discord HTTPException: {e}")
-                    send_telegram(f"ERROR: Discord message sending failed: {e}")
-                    break
-            except Exception as ex:
-                log("error", f"Unexpected error in msg.send: {ex}")
-                break
+# ------------------- Message Slot Update Functions -------------------
+async def get_or_create_embed_slots(channel):
+    stored = []
+    if os.path.exists(EMBEDS_FILE) and os.path.getsize(EMBEDS_FILE) > 0:
+        try:
+            with open(EMBEDS_FILE, "r") as f:
+                stored = json.load(f)
+        except Exception as e:
+            log("error", f"Error loading {EMBEDS_FILE}: {e}")
+            stored = []
+    if len(stored) != len(ORDERED_REGIONS):
+        log("info", "Stored embed slots not found or incomplete. Creating new embed slots...")
+        stored = []
+        placeholder = discord.Embed(title="Placeholder", description="This message will be updated shortly.", colour=0x999999)
+        for _ in ORDERED_REGIONS:
+            msg = await channel.send(embed=placeholder)
+            stored.append({
+                "message_id": msg.id,
+                "channel_id": msg.channel.id
+            })
+            await asyncio.sleep(1)
+        with open(EMBEDS_FILE, "w") as f:
+            json.dump(stored, f)
+    return stored
+
+async def update_embed_slots(channel, embed_list, stored_slots):
+    for i, (region, embed_obj, _) in enumerate(embed_list):
+        slot = stored_slots[i]
+        try:
+            msg = await channel.fetch_message(slot["message_id"])
+            await msg.edit(embed=embed_obj)
+            log("info", f"Updated slot {i} for region {region}.")
+        except Exception as e:
+            log("error", f"Error updating slot {i} for region {region}: {e}")
+        await asyncio.sleep(1)
 
 # ------------------- Main Update Loop -------------------
-# Define the desired online order.
-ORDERED_REGIONS = ["SEA", "NA3", "NA2", "NA1", "EU2", "EU1"]
-
 @tasks.loop(seconds=CHECK_INTERVAL)
 async def update_game_status():
-    # 1) Update the Discord cache first.
+    log("info", "----- Starting update_game_status cycle -----")
+    # Reload the servers config file each cycle.
+    load_servers_config()
+    # Update Discord cache.
     await update_discord_cache()
-    # 2) Retrieve queue data and FiveM data.
+    # Retrieve queue and FiveM data.
     queue_data = await getqueuedata()
     fivem_data = await get_fivem_data()
-    # 3) Fetch players data for each region (derived from SERVERS_CONFIG).
-    regions = ORDERED_REGIONS  # Use our desired order.
+    # Fetch players data for each region.
+    regions = ORDERED_REGIONS
     results = []
     for region in regions:
         players = await fetch_players(region)
@@ -406,18 +395,20 @@ async def update_game_status():
         await asyncio.sleep(1)
     region_players_map = dict(zip(regions, results))
     
-    # 4) Failure tracking: increment counter if player data or FiveM data is missing.
+    # Failure tracking.
     for region in regions:
         players = region_players_map.get(region)
         if players is None or (fivem_data and fivem_data.get(region) is None):
             failure_counts[region] = failure_counts.get(region, 0) + 1
+            log("warning", f"Failure count for region {region} increased to {failure_counts[region]}.")
             if failure_counts[region] >= 5:
+                log("info", f"Failure count for {region} reached threshold; checking server info...")
                 await check_and_update_server_info(region)
                 failure_counts[region] = 0
         else:
             failure_counts[region] = 0
 
-    # 5) Build a list of embed data (region, embed, offline flag).
+    # Build embed list.
     embed_list = []
     for region in regions:
         players = region_players_map.get(region)
@@ -427,7 +418,7 @@ async def update_game_status():
             for pl in players:
                 username = pl["Username"]["Username"]
                 if any(mp["username"] == username for mp in matching_players):
-                    continue  # skip duplicates
+                    continue
                 if username.startswith("[SWAT] "):
                     cleaned_name = re.sub(r'^\[SWAT\]\s*', '', username, flags=re.IGNORECASE)
                     discord_found = False
@@ -483,36 +474,29 @@ async def update_game_status():
         offline = False
         if matching_players is None or (fivem_data and fivem_data.get(region) is None):
             offline = True
-        # Modify embed title to indicate offline status.
-        if offline:
-            if not embed_obj.title.startswith("[OFFLINE] "):
-                embed_obj.title = "[OFFLINE] " + embed_obj.title
-        else:
-            if embed_obj.title.startswith("[OFFLINE] "):
-                embed_obj.title = embed_obj.title.replace("[OFFLINE] ", "", 1)
+        # Testing override.
+        if region in TEST_OVERRIDE_STATUS:
+            log("info", f"TEST OVERRIDE: Forcing region {region} to be " +
+                ("offline" if TEST_OVERRIDE_STATUS[region] else "online") + ".")
+            offline = TEST_OVERRIDE_STATUS[region]
+        # (No renaming of title—color alone indicates status.)
         embed_list.append((region, embed_obj, offline))
     
-    # 6) Sort embed_list: offline servers first, then online servers in the specified order.
+    log("info", f"Embed list before sorting: {[ (r, 'OFFLINE' if off else 'ONLINE') for r,_,off in embed_list ]}")
+    
     embed_list.sort(key=lambda x: (0 if x[2] else 1,
                                    ORDERED_REGIONS.index(x[0]) if x[0] in ORDERED_REGIONS else 999))
     
+    log("info", f"Embed list after sorting: {[ (r, 'OFFLINE' if off else 'ONLINE') for r,_,off in embed_list ]}")
+    
     channel = client.get_channel(STATUS_CHANNEL_ID)
     if not channel:
-        log("error", f"Status-Kanal {STATUS_CHANNEL_ID} nicht gefunden.")
+        log("error", f"Status channel {STATUS_CHANNEL_ID} not found.")
         return
-    stored_embeds = []
-    if os.path.exists(EMBEDS_FILE) and os.path.getsize(EMBEDS_FILE) > 0:
-        with open(EMBEDS_FILE, "r") as f:
-            stored_embeds = json.load(f)
-    new_stored_embeds = []
-    for region, embed_obj, _ in embed_list:
-        log("info", f"Verarbeite Region: {region}")
-        entry = await update_or_create_embed_for_region(channel, region, embed_obj, stored_embeds)
-        if entry:
-            new_stored_embeds.append(entry)
-        await asyncio.sleep(1)
-    with open(EMBEDS_FILE, "w") as f:
-        json.dump(new_stored_embeds, f)
+    stored_slots = await get_or_create_embed_slots(channel)
+    await update_embed_slots(channel, embed_list, stored_slots)
+    
+    log("info", "----- update_game_status cycle complete -----")
 
 # ------------------- Bot Token Loader & Run -------------------
 with open(TOKEN_FILE, "r") as file:
@@ -521,5 +505,5 @@ with open(TOKEN_FILE, "r") as file:
 try:
     client.run(TOKEN)
 except Exception as e:
-    log("critical", f"Bot Fehler: {e}")
+    log("critical", f"Bot error: {e}")
     sys.exit(1)
