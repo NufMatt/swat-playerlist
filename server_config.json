@@ -1,0 +1,39 @@
+{
+    "NA1": {
+      "shortcut": "a6aope",
+      "ip": "45.88.228.198",
+      "port": "30120",
+      "api_url": "https://45.88.228.198:30120/info.json"
+    },
+    "NA2": {
+      "shortcut": "zlvypp",
+      "ip": "45.88.228.198",
+      "port": "30121",
+      "api_url": "https://45.88.228.198:30121/info.json"
+    },
+    "NA3": {
+      "shortcut": "qmv4z4",
+      "ip": "45.88.228.198",
+      "port": "30122",
+      "api_url": "https://45.88.228.198:30122/info.json"
+    },
+    "EU1": {
+      "shortcut": "kx98er",
+      "ip": "163.123.193.20",
+      "port": "30120",
+      "api_url": "https://163.123.193.20:30120/info.json"
+    },
+    "EU2": {
+      "shortcut": "abo683",
+      "ip": "163.123.193.20",
+      "port": "30121",
+      "api_url": "https://163.123.193.20:30121/info.json"
+    },
+    "SEA": {
+      "shortcut": "apyap9",
+      "ip": "51.79.231.52",
+      "port": "30130",
+      "api_url": "https://51.79.231.52:30130/info.json"
+    }
+  }
+  
