@@ -244,7 +244,7 @@ async def create_embed(region, matching_players, queue_data, fivem_data):
         embed.add_field(name="Server or API down?", value="No Data for this server!", inline=False)
         embed.add_field(name="🎮Players:", value="```no data```", inline=True)
         embed.add_field(name="⌛Queue:", value="```no data```", inline=True)
-        embed.set_footer(text="Refreshes every 60 second")
+        embed.set_footer(text="Refreshes every 30 second")
         embed.timestamp = datetime.now()
         return embed
 
@@ -305,7 +305,7 @@ async def create_embed(region, matching_players, queue_data, fivem_data):
         embed.add_field(name="🎮Players:", value="```no data```", inline=True)
         embed.add_field(name="⌛Queue:", value="```no data```", inline=True)
 
-    embed.set_footer(text="Refreshes every 60 second")
+    embed.set_footer(text="Refreshes every 30 seconds")
     embed.timestamp = datetime.now()
     return embed
 
