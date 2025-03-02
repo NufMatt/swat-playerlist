@@ -154,7 +154,7 @@ async def get_fivem_data():
                     response.raise_for_status()
                     text = await response.text(encoding='utf-8')
                     fivem_data[region] = json.loads(text)
-                    await asyncio.sleep(1)
+                    await asyncio.sleep(1.5)
             except Exception as e:
                 log("warning", f"Fehler beim Abrufen der Fivem Daten {region}: {e}")
                 fivem_data[region] = None
