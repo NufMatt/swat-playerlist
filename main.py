@@ -292,12 +292,12 @@ async def create_embed(region, matching_players, queue_data, fivem_data):
         # Stats
         if queue_data and region in queue_data:
             p = queue_data[region]
-            embed.add_field(name=f"{safe_emoji(1196404423874854992)}SWAT:", value=f"``` {swat_count}+{trainee_count} ```", inline=True)
+            embed.add_field(name=f"{safe_emoji(1196404423874854992)}SWAT:", value=f"``` {swat_count} + {trainee_count} ```", inline=True)
             embed.add_field(name="🎮Players:", value=f"```{p['Players']}/{p['MaxPlayers']}```", inline=True)
             embed.add_field(name="⌛Queue:", value=f"```{p['QueuedPlayers']}```", inline=True)
             embed.add_field(name="", value=restart_timer, inline=False)
         else:
-            embed.add_field(name=f"{safe_emoji(1196404423874854992)}SWAT:", value=f"``` {swat_count}+{trainee_count} ```", inline=True)
+            embed.add_field(name=f"{safe_emoji(1196404423874854992)}SWAT:", value=f"``` {swat_count} + {trainee_count} ```", inline=True)
             embed.add_field(name="🎮Players:", value="```no data```", inline=True)
             embed.add_field(name="⌛Queue:", value="```no data```", inline=True)
     else:
