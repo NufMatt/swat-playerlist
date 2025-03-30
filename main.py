@@ -359,7 +359,7 @@ async def update_game_status():
                             discord_found = True
                             # Check if the member has the leadership role and prepend the icon if so.
                             is_leader = LEADERSHIP_ROLE_ID in details["roles"]
-                            display_name = f"{LEADERSHIP_EMOJI}{username}" if is_leader else username
+                            display_name = f"{LEADERSHIP_EMOJI} {username}" if is_leader else username
                             mtype = "mentor" if MENTOR_ROLE_ID in details["roles"] else "SWAT"
                             matching_players.append({
                                 "username": display_name,
