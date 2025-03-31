@@ -395,6 +395,7 @@ async def update_game_status():
                                     "discord_id": details["id"],
                                     "rank": get_rank_from_roles(details["roles"])
                                 })
+                            """
                             elif SWAT_ROLE_ID in details["roles"]:
                                 matching_players.append({
                                     "username": username,
@@ -402,6 +403,7 @@ async def update_game_status():
                                     "discord_id": details["id"],
                                     "rank": get_rank_from_roles(details["roles"])
                                 })
+                            """
                             break
         
         # Sort matching players if not None
