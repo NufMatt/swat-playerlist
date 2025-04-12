@@ -178,7 +178,7 @@ async def update_discord_cache():
             })
     
     for i in activity:
-        xabcde = str(i["username"]) + " - " + str(i["rank"]  + " - " + str(i["id"]))
+        xabcde = str(i["username"]) + " - " + str(i["rank"])  + " - " + str(i["id"])
         log("info", xabcde)
     
     log("info", "Discord-Cache wurde aktualisiert!")
